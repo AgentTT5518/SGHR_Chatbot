@@ -1,0 +1,19 @@
+# Already installed (listed for completeness)
+anthropic==0.84.0
+fastapi==0.135.1
+uvicorn[standard]==0.41.0
+pydantic==2.12.5
+httpx==0.28.1
+beautifulsoup4==4.14.3
+numpy==1.26.4
+
+# To install
+chromadb>=0.5.0
+sentence-transformers==3.4.1
+playwright==1.50.0
+pdfminer.six==20231228
+python-dotenv==1.1.0
+pydantic-settings==2.8.2
+lxml==5.4.0
+aiosqlite==0.20.0
+transformers>=4.40.0

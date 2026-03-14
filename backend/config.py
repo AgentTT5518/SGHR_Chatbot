@@ -1,0 +1,25 @@
+from pathlib import Path
+from pydantic_settings import BaseSettings
+
+
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+CHROMA_DIR = DATA_DIR / "chroma_db"
+SESSIONS_DB = DATA_DIR / "sessions.db"
+RAW_SCRAPED_DIR = DATA_DIR / "raw_scraped"
+
+
+class Settings(BaseSettings):
+    anthropic_api_key: str
+    embedding_model: str = "BAAI/bge-base-en-v1.5"
+    claude_model: str = "claude-sonnet-4-6"
+    max_tokens: int = 2048
+    session_ttl_hours: int = 2
+    session_history_pairs: int = 10
+
+    class Config:
+        env_file = BASE_DIR.parent / ".env"
+        env_file_encoding = "utf-8"
+
+
+settings = Settings()
