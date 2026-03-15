@@ -44,6 +44,8 @@ async def _get_conn():
 
 async def init_db():
     """Create tables if they don't exist."""
+    from pathlib import Path
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     async with _get_conn() as conn:
         await conn.executescript(CREATE_SCHEMA)
         await conn.commit()
