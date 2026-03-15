@@ -1,0 +1,23 @@
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+
+# Third-party libraries with incomplete or incorrect type stubs
+[[tool.mypy.overrides]]
+module = [
+    "chromadb.*",
+    "sentence_transformers.*",
+    "bs4.*",
+    "pdfminer.*",
+]
+ignore_errors = true
+
+# Modules that use dynamic third-party types extensively
+[[tool.mypy.overrides]]
+module = [
+    "backend.retrieval.vector_store",
+    "backend.chat.rag_chain",
+]
+disable_error_code = ["arg-type", "attr-defined", "index", "call-overload", "valid-type"]

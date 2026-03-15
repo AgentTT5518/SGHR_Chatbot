@@ -74,7 +74,7 @@ def get_child_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     base_path = urlparse(base_url).path.rstrip("/")
     links = set()
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = str(a["href"])
         full = urljoin(base_url, href)
         parsed = urlparse(full)
         if (

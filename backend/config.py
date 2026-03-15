@@ -10,7 +10,7 @@ RAW_SCRAPED_DIR = DATA_DIR / "raw_scraped"
 
 
 class Settings(BaseSettings):
-    anthropic_api_key: str
+    anthropic_api_key: str = ""
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     claude_model: str = "claude-sonnet-4-6"
     max_tokens: int = 2048
