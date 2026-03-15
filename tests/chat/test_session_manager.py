@@ -164,3 +164,18 @@ async def test_cleanup_keeps_active_sessions(db):
 async def test_cleanup_returns_zero_when_nothing_to_delete(db):
     deleted = await sm.cleanup_stale_sessions(ttl_hours=1)
     assert deleted == 0
+
+
+# ── cleanup_loop ──────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cleanup_loop_cancels_cleanly(db):
+    """cleanup_loop must exit without raising when cancelled."""
+    task = asyncio.create_task(sm.cleanup_loop())
+    await asyncio.sleep(0)  # yield to let the task start
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass  # expected during first asyncio.sleep inside the loop
+    assert task.done()
