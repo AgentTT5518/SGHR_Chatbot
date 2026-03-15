@@ -77,7 +77,15 @@ tests/                # Mirrors backend/ structure
 - Branches: `feature/[short-desc]`, `fix/[short-desc]`
 - Conventional commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`
 - Never commit to `main` directly
-- Run tests + lint before every commit
+- Run full test suite before every commit
+
+### Parallel Development (2+ developers on same repo)
+- Use git worktrees: `git worktree add ../project-[feature] feature/[name]`
+- One Claude Code session per worktree — never share
+- **Shared contracts first** — agree on types/interfaces, merge to `main` before feature work
+- **Lock shared resources** — only one person modifies `backend/api/` routes or migrations at a time
+- Rebase on `main` before opening PR
+- Full guide: `docs/parallel-development.md`
 
 ## Secret Patterns
 ```
@@ -153,12 +161,20 @@ grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
 ## Feature Workflow
 ```
 1. BOUNDARY  -> Identify which module/component this feature lives in
-2. PLAN      -> /plan mode -> write docs/requirements/[feature].md
-3. DESIGN    -> Update ARCHITECTURE.md with planned changes
-4. BUILD     -> Implement + tests + logger (ask before cross-boundary edits)
-5. REVIEW    -> Secret scan + tests + self-review checklist
-6. DOCUMENT  -> Update ARCHITECTURE.md Feature Log
-7. COMMIT    -> Conventional commit -> push feature branch -> PR
+2. PLAN      -> Create Plan/Planning/[feature]/ folder
+              -> Copy docs/templates/plan-template.md to Plan/Planning/[feature]/plan.md
+              -> Iterate on plan with Claude — save progress to plan.md
+3. REVIEW    -> User reviews plan.md, adds comments/feedback
+              -> Resolve open questions, finalize approach
+4. APPROVE   -> User gives go-ahead to start development
+5. DESIGN    -> Update ARCHITECTURE.md with planned changes
+6. BUILD     -> Implement + tests + logger (ask before cross-boundary edits)
+7. TEST      -> Secret scan + tests + self-review checklist
+8. COMPLETE  -> Finalize docs/requirements/[feature].md (from plan)
+              -> Finalize docs/decisions/[feature].md (from plan decisions)
+              -> Update ARCHITECTURE.md Feature Log
+              -> Move Plan/Planning/[feature]/ to Plan/Archive/[feature]/
+9. COMMIT    -> Conventional commit -> push feature branch -> PR
 ```
 
 ## Command Policy Overrides
@@ -174,10 +190,25 @@ grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
 
 ## Reference Docs
 - `ARCHITECTURE.md` — Living system design
+- `docs/github-workflow-guide.md` — Step-by-step feature development workflow
+- `docs/parallel-development.md` — Multi-developer worktree workflow
+- `docs/project-setup-guide.md` — Decision guide for artifact selection (skills, evals, brand docs)
+- `docs/skills-guide.md` — How to create custom Claude Code skills
+- `docs/evals-guide.md` — How to set up AI output quality testing
+- `docs/brand-voice-guide.md` — How to define writing style and brand voice
+- `docs/command-policy.md` — Command permission tiers for Claude Code operations
 - `docs/brand/BRAND-PROFILE.md` — Product identity and voice
 - `docs/brand/STYLE-GUIDE.md` — Writing rules for AI responses
 - `docs/brand/TONE-MATRIX.md` — Tone adjustments by context
-- `docs/requirements/` — Feature specs
-- `docs/decisions/` — Architecture Decision Records
+- `Plan/Planning/` — Active feature plans (working drafts)
+- `Plan/Archive/` — Completed feature plans
+- `docs/templates/plan-template.md` — Plan file template
+- `docs/requirements/` — Finalized feature specs (written on completion)
+- `docs/decisions/` — Finalized Architecture Decision Records (written on completion)
+- `docs/templates/FEATURE-CLAUDE.md` — Feature boundary template
+- `docs/templates/skill-template.md` — Custom skill starter file
+- `docs/templates/eval-template/` — Eval test structure starter (rubric + test cases)
+- `docs/templates/brand/` — Brand identity, style guide, and tone matrix templates
 - `backend/lib/logger.py` — Structured logger
 - `.claude/settings.json` — Command permission policy
+- `.claude/commands/project-setup.md` — Interactive project setup skill (`/project-setup`)
