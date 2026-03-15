@@ -50,10 +50,11 @@ async def init_db():
 
 
 async def get_or_create(session_id: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
     async with _get_conn() as conn:
         await conn.execute(
-            "INSERT OR IGNORE INTO sessions (session_id) VALUES (?)",
-            (session_id,),
+            "INSERT OR IGNORE INTO sessions (session_id, created_at, last_active) VALUES (?, ?, ?)",
+            (session_id, now, now),
         )
         await conn.commit()
 
@@ -86,7 +87,7 @@ async def get_history(session_id: str, last_n_pairs: int | None = None) -> list[
         cursor = await conn.execute(
             """
             SELECT role, content FROM (
-                SELECT role, content, created_at
+                SELECT id, role, content, created_at
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY created_at DESC, id DESC
