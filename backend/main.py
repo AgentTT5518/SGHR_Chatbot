@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.routes_chat import router as chat_router
+from backend.api.routes_admin import router as admin_router
 from backend.chat import session_manager
 from backend.retrieval import vector_store
 from backend.lib.logger import get_logger
@@ -54,9 +56,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from backend.api.routes_chat import router as chat_router
-from backend.api.routes_admin import router as admin_router
 
 app.include_router(chat_router)
 app.include_router(admin_router)

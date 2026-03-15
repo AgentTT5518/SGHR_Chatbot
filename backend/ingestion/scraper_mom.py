@@ -10,7 +10,6 @@ import asyncio
 import json
 import random
 import re
-from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -75,7 +74,7 @@ def get_child_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     base_path = urlparse(base_url).path.rstrip("/")
     links = set()
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = str(a["href"])
         full = urljoin(base_url, href)
         parsed = urlparse(full)
         if (
@@ -127,8 +126,6 @@ async def scrape_mom() -> tuple[list[dict], list[dict]]:
             print(f"  {icon} {url} — {status}")
 
         # Scrape seed URLs and their children
-        to_scrape: list[str] = [u for u in SEED_URLS]
-
         for seed_url in SEED_URLS:
             if seed_url in visited:
                 continue

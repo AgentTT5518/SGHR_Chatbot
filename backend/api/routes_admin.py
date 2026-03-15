@@ -3,9 +3,6 @@ Admin routes for triggering re-ingestion and health checks.
 POST /admin/ingest — run the ingestion pipeline
 GET  /admin/health/sources — check MOM URL health
 """
-import json
-import asyncio
-
 import httpx
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel

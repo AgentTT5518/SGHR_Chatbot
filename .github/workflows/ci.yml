@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check backend/
+
+      - name: Type check
+        run: python -m mypy backend/
+
+      - name: Test
+        run: python -m pytest tests/ -v
+
+      - name: Secret scan
+        run: |
+          if grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
+            --include="*.py" --include="*.js" --include="*.jsx" --include="*.ts" \
+            --include="*.json" --include="*.env" \
+            backend/ frontend/src/ . 2>/dev/null \
+            | grep -v node_modules | grep -v ".env.example"; then
+            echo "SECRETS DETECTED — merge blocked"
+            exit 1
+          else
+            echo "Secret scan passed"
+          fi
