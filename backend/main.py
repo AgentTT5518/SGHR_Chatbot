@@ -9,28 +9,31 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.chat import session_manager
 from backend.retrieval import vector_store
+from backend.lib.logger import get_logger
+
+log = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("[startup] Initialising SQLite schema...")
+    log.info("Initialising SQLite schema...")
     await session_manager.init_db()
 
-    print("[startup] Pre-loading embedding model...")
+    log.info("Pre-loading embedding model...")
     from backend.ingestion.embedder import get_model
     get_model()
 
-    print("[startup] Checking ChromaDB collections...")
+    log.info("Checking ChromaDB collections...")
     if not vector_store.is_ready():
-        print(
-            "[startup] WARNING: ChromaDB collections are empty or missing. "
+        log.warning(
+            "ChromaDB collections are empty or missing. "
             "Run: python -m backend.ingestion.ingest_pipeline"
         )
 
     # Start background session cleanup task
     cleanup_task = asyncio.create_task(session_manager.cleanup_loop())
-    print("[startup] Ready.")
+    log.info("Ready.")
 
     yield
 

@@ -13,3 +13,5 @@ frontend/dist/
 frontend/.vite/
 *.log
 .DS_Store
+tests/test-results/
+.claude/settings.local.json
