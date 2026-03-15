@@ -121,7 +121,7 @@ def run(pdf_path: Path | None = None):
     _upsert_chunks(ea_col, ea_chunks, "employment_act")
     _upsert_chunks(mom_col, mom_chunks, "mom_guidelines")
 
-    print(f"\n=== Ingestion complete ===")
+    print("\n=== Ingestion complete ===")
     print(f"  employment_act collection: {ea_col.count()} documents")
     print(f"  mom_guidelines collection: {mom_col.count()} documents")
 

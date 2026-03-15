@@ -10,7 +10,6 @@ import asyncio
 import json
 import random
 import re
-from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -127,8 +126,6 @@ async def scrape_mom() -> tuple[list[dict], list[dict]]:
             print(f"  {icon} {url} — {status}")
 
         # Scrape seed URLs and their children
-        to_scrape: list[str] = [u for u in SEED_URLS]
-
         for seed_url in SEED_URLS:
             if seed_url in visited:
                 continue

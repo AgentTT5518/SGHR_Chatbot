@@ -9,7 +9,6 @@ import asyncio
 import json
 import random
 import re
-from pathlib import Path
 
 from backend.config import RAW_SCRAPED_DIR
 
