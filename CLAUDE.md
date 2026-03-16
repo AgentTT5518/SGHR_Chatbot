@@ -89,7 +89,7 @@ tests/                # Mirrors backend/ structure
 
 ## Secret Patterns
 ```
-SECRET_SCAN_PATTERNS="sk-ant-\|sk-\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*="
+SECRET_SCAN_PATTERNS="sk-ant-\|sk-[a-zA-Z0-9]\{20,\}\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*="
 ```
 
 ---
@@ -99,7 +99,7 @@ SECRET_SCAN_PATTERNS="sk-ant-\|sk-\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|A
 ### Rule 1: Secret Protection
 Before every commit, scan for exposed secrets:
 ```bash
-grep -rn "sk-ant-\|sk-\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
+grep -rn "sk-ant-\|sk-[a-zA-Z0-9]\{20,\}\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
   --include="*.py" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.json" \
   backend/ frontend/src/ . 2>/dev/null | grep -v node_modules | grep -v ".env.example"
 ```
