@@ -33,10 +33,9 @@ jobs:
 
       - name: Secret scan
         run: |
-          if grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
-            --include="*.py" --include="*.js" --include="*.jsx" --include="*.ts" \
-            --include="*.json" --include="*.env" \
-            backend/ frontend/src/ . 2>/dev/null \
+          if git ls-files -z | xargs -0 grep -lnE \
+            "sk-ant-|sk-|AKIA[A-Z0-9]{16}|ghp_[A-Za-z0-9]{36}|ANTHROPIC_API_KEY\s*=\s*sk|Bearer |password\s*=" \
+            2>/dev/null \
             | grep -v node_modules | grep -v ".env.example"; then
             echo "SECRETS DETECTED — merge blocked"
             exit 1

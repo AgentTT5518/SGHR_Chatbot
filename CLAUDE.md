@@ -89,7 +89,7 @@ tests/                # Mirrors backend/ structure
 
 ## Secret Patterns
 ```
-SECRET_SCAN_PATTERNS="sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*="
+SECRET_SCAN_PATTERNS="sk-ant-\|sk-\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*="
 ```
 
 ---
@@ -99,7 +99,7 @@ SECRET_SCAN_PATTERNS="sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=
 ### Rule 1: Secret Protection
 Before every commit, scan for exposed secrets:
 ```bash
-grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
+grep -rn "sk-ant-\|sk-\|AKIA[A-Z0-9]\{16\}\|ghp_[A-Za-z0-9]\{36\}\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
   --include="*.py" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.json" \
   backend/ frontend/src/ . 2>/dev/null | grep -v node_modules | grep -v ".env.example"
 ```
@@ -186,7 +186,7 @@ grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
 | `git add / commit` | 2 | 2 | Requires confirmation |
 | `git push` | 2 | 2 | Requires confirmation |
 | `pip install` | 2 | 2 | Supply chain risk |
-| `rm -rf` / `git push --force` | 3 | 3 | Prohibited |
+| `rm -rf` / `git push --force` / `git reset --hard` | 3 | 3 | Prohibited |
 
 ## Reference Docs
 - `ARCHITECTURE.md` — Living system design
@@ -210,5 +210,6 @@ grep -rn "sk-ant-\|ANTHROPIC_API_KEY\s*=\s*sk\|Bearer \|password\s*=" \
 - `docs/templates/eval-template/` — Eval test structure starter (rubric + test cases)
 - `docs/templates/brand/` — Brand identity, style guide, and tone matrix templates
 - `backend/lib/logger.py` — Structured logger
+- `docs/templates/logger-template.py` — Python logger template
 - `.claude/settings.json` — Command permission policy
 - `.claude/commands/project-setup.md` — Interactive project setup skill (`/project-setup`)

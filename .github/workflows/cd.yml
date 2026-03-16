@@ -5,7 +5,23 @@ on:
     branches: [main]
 
 jobs:
+  # Check if frontend exists (package.json present)
+  node_check:
+    runs-on: ubuntu-latest
+    outputs:
+      has_node: ${{ steps.check.outputs.has_node }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if [ -f frontend/package.json ]; then
+            echo "has_node=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_node=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
+    needs: node_check
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +36,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Setup Node
+        if: needs.node_check.outputs.has_node == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Build frontend
+        if: needs.node_check.outputs.has_node == 'true'
         working-directory: frontend
         run: |
           npm install
