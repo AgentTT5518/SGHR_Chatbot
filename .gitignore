@@ -14,6 +14,9 @@ frontend/.vite/
 *.log
 .DS_Store
 tests/test-results/
-.claude/settings.local.json
+# Claude Code — commit commands/ only; ignore everything else
+.claude/*
+!.claude/commands/
+!.claude/settings.json
 .coverage*
 htmlcov/
