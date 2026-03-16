@@ -10,7 +10,7 @@ const WELCOME = `Welcome to the **HR Assistant**. I can help you with questions 
 
 Ask your question below. Toggle your role above for tailored answers.`;
 
-export function ChatWindow({ messages, isLoading }) {
+export function ChatWindow({ messages, isLoading, sessionId, onFeedback }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -34,8 +34,14 @@ export function ChatWindow({ messages, isLoading }) {
         </div>
       )}
 
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+      {messages.map((msg, index) => (
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          messageIndex={index}
+          sessionId={sessionId}
+          onFeedback={onFeedback}
+        />
       ))}
 
       <div ref={bottomRef} />

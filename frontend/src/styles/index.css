@@ -224,3 +224,157 @@ body {
 .chat-window::-webkit-scrollbar       { width: 6px; }
 .chat-window::-webkit-scrollbar-track { background: transparent; }
 .chat-window::-webkit-scrollbar-thumb { background: #c5cae9; border-radius: 3px; }
+
+/* ===== Feedback Bar ===== */
+.feedback-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.feedback-btn {
+  background: none;
+  border: 1.5px solid #c5cae9;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.feedback-btn:hover { opacity: 1; border-color: #1a237e; }
+.feedback-btn.active { opacity: 1; border-color: #1a237e; background: #e8eaf6; }
+.feedback-thanks { font-size: 11px; color: #5c6bc0; }
+
+/* ===== Admin Button ===== */
+.admin-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(255,255,255,0.5);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-btn:hover { background: rgba(255,255,255,0.1); }
+
+/* ===== Admin Dashboard Page ===== */
+.admin-page {
+  min-height: 100dvh;
+  background: #f5f6fa;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #1a237e;
+  color: #fff;
+}
+.admin-title { font-size: 18px; font-weight: 700; }
+.admin-close-btn {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.5);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.admin-close-btn:hover { background: rgba(255,255,255,0.1); }
+
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  background: #fff;
+  border-bottom: 2px solid #e8eaf6;
+  padding: 0 24px;
+}
+.admin-tab-btn {
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+.admin-tab-btn:hover { color: #1a237e; }
+.admin-tab-btn.active { color: #1a237e; font-weight: 600; border-bottom-color: #1a237e; }
+
+.admin-content {
+  flex: 1;
+  padding: 24px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.admin-section { }
+.admin-section-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a1a2e; }
+.admin-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.admin-section-header .admin-section-title { margin-bottom: 0; }
+
+.admin-table {
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 300px;
+}
+.admin-table-full { width: 100%; }
+.admin-table th, .admin-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e8eaf6;
+}
+.admin-table th { font-weight: 600; background: #f0f2ff; }
+.admin-table tr:last-child td { border-bottom: none; }
+
+.admin-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-badge.ok   { background: #e8f5e9; color: #2e7d32; }
+.admin-badge.fail { background: #fdecea; color: #b71c1c; }
+
+.admin-btn-primary {
+  padding: 8px 16px;
+  background: #1a237e;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.admin-btn-primary:disabled { background: #c5cae9; cursor: not-allowed; }
+.admin-btn-primary:hover:not(:disabled) { background: #283593; }
+
+.admin-btn-secondary {
+  padding: 8px 16px;
+  background: transparent;
+  color: #1a237e;
+  border: 1.5px solid #1a237e;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.admin-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-btn-secondary:hover:not(:disabled) { background: #e8eaf6; }
+
+.admin-btn-row { display: flex; gap: 10px; }
+
+.admin-source-list { margin-top: 8px; list-style: none; font-size: 13px; }
+.admin-source-list li { padding: 4px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-url { font-family: monospace; font-size: 12px; color: #444; word-break: break-all; }
+.admin-error-inline { color: #b71c1c; font-size: 12px; }
+.admin-error { color: #b71c1c; font-size: 14px; }
+.admin-empty { color: #888; font-size: 14px; }
+.admin-status-msg { margin-top: 12px; font-size: 13px; color: #444; }
+.admin-session-id { font-family: monospace; font-size: 12px; color: #666; }
+.admin-spinner { padding: 32px; text-align: center; color: #888; }

@@ -2,9 +2,17 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-export function MessageBubble({ message }) {
+export function MessageBubble({ message, messageIndex, sessionId, onFeedback }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [feedback, setFeedback] = useState(null); // "up" | "down" | null
   const isUser = message.role === "user";
+  const canRate = !isUser && !message.isStreaming && message.content;
+
+  function handleFeedback(rating) {
+    if (feedback === rating) return; // already rated
+    setFeedback(rating);
+    onFeedback?.(messageIndex, rating);
+  }
 
   return (
     <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
@@ -37,6 +45,30 @@ export function MessageBubble({ message }) {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {canRate && (
+        <div className="feedback-bar">
+          <button
+            className={`feedback-btn ${feedback === "up" ? "active" : ""}`}
+            onClick={() => handleFeedback("up")}
+            title="Helpful"
+            aria-label="Mark as helpful"
+          >
+            👍
+          </button>
+          <button
+            className={`feedback-btn ${feedback === "down" ? "active" : ""}`}
+            onClick={() => handleFeedback("down")}
+            title="Not helpful"
+            aria-label="Mark as not helpful"
+          >
+            👎
+          </button>
+          {feedback && (
+            <span className="feedback-thanks">Thanks for the feedback!</span>
           )}
         </div>
       )}

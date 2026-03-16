@@ -86,3 +86,30 @@ export async function checkHealth() {
     return null;
   }
 }
+
+/**
+ * Submit thumbs-up or thumbs-down feedback for an assistant message.
+ * @param {Object} opts
+ * @param {string} opts.sessionId
+ * @param {number} opts.messageIndex - array index of the message in the conversation
+ * @param {"up"|"down"} opts.rating
+ * @param {string} [opts.comment]
+ * @returns {Promise<boolean>} true on success
+ */
+export async function submitFeedback({ sessionId, messageIndex, rating, comment }) {
+  try {
+    const response = await fetch(`${API_BASE}/api/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        message_index: messageIndex,
+        rating,
+        comment: comment ?? null,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}

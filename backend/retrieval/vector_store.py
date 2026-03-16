@@ -31,7 +31,7 @@ def get_collection(name: str) -> Collection:
 def query(collection_name: str, query_embedding: list[float], n: int = 10) -> list[dict]:
     """
     Query a ChromaDB collection.
-    Returns list of {text, metadata, distance} dicts sorted by distance (ascending).
+    Returns list of {id, text, metadata, distance} dicts sorted by distance (ascending).
     """
     col = get_collection(collection_name)
     if col.count() == 0:
@@ -44,12 +44,32 @@ def query(collection_name: str, query_embedding: list[float], n: int = 10) -> li
     )
 
     output = []
-    for doc, meta, dist in zip(
+    for doc_id, doc, meta, dist in zip(
+        results["ids"][0],
         results["documents"][0],
         results["metadatas"][0],
         results["distances"][0],
     ):
-        output.append({"text": doc, "metadata": meta, "distance": dist})
+        output.append({"id": doc_id, "text": doc, "metadata": meta, "distance": dist})
+    return output
+
+
+def get_all_documents(collection_name: str) -> list[dict]:
+    """
+    Fetch every document from a collection (used for TF-IDF fitting).
+    Returns list of {id, text, metadata} dicts.
+    """
+    col = get_collection(collection_name)
+    if col.count() == 0:
+        return []
+    results = col.get(include=["documents", "metadatas"])
+    output = []
+    for doc_id, doc, meta in zip(
+        results["ids"],
+        results["documents"],
+        results["metadatas"],
+    ):
+        output.append({"id": doc_id, "text": doc, "metadata": meta})
     return output
 
 

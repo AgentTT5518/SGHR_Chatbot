@@ -2,13 +2,15 @@
 Admin routes for triggering re-ingestion and health checks.
 POST /admin/ingest — run the ingestion pipeline
 GET  /admin/health/sources — check MOM URL health
+GET  /admin/collections — document counts from ChromaDB
 """
 import httpx
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import BaseModel
 
-from backend.config import RAW_SCRAPED_DIR
+from backend.config import RAW_SCRAPED_DIR, settings
 from backend.ingestion.scraper_mom import SEED_URLS, HEADERS
+from backend.lib.limiter import limiter
 
 router = APIRouter(prefix="/admin")
 
@@ -24,13 +26,20 @@ def _run_ingest(force_rescrape: bool):
             path = RAW_SCRAPED_DIR / fname
             if path.exists():
                 path.unlink()
+        # Invalidate keyword search cache after re-ingestion
+        try:
+            from backend.retrieval.keyword_search import reset_searcher
+            reset_searcher()
+        except Exception:
+            pass
 
     from backend.ingestion.ingest_pipeline import run
     run()
 
 
 @router.post("/ingest")
-async def trigger_ingest(req: IngestRequest, background_tasks: BackgroundTasks):
+@limiter.limit(settings.admin_rate_limit)
+async def trigger_ingest(request: Request, req: IngestRequest, background_tasks: BackgroundTasks):
     """
     Trigger the ingestion pipeline in the background.
     Check /admin/health/sources first to validate MOM URLs.
@@ -44,7 +53,8 @@ async def trigger_ingest(req: IngestRequest, background_tasks: BackgroundTasks):
 
 
 @router.get("/health/sources")
-async def check_source_health():
+@limiter.limit(settings.admin_rate_limit)
+async def check_source_health(request: Request):
     """Validate all MOM seed URLs are reachable before ingestion."""
     results = []
     async with httpx.AsyncClient(headers=HEADERS) as client:
@@ -65,7 +75,8 @@ async def check_source_health():
 
 
 @router.get("/collections")
-async def collection_counts():
+@limiter.limit(settings.admin_rate_limit)
+async def collection_counts(request: Request):
     """Return current document counts in ChromaDB collections."""
     from backend.retrieval.vector_store import get_collection
     try:

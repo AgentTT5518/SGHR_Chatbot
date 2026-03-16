@@ -4,11 +4,13 @@ POST /api/chat        — stream a RAG response (SSE)
 GET  /api/sessions/{session_id}/history — fetch conversation history
 DELETE /api/sessions/{session_id}       — delete a session
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.chat import rag_chain, session_manager
+from backend.config import settings
+from backend.lib.limiter import limiter
 
 router = APIRouter(prefix="/api")
 
@@ -20,7 +22,8 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
+@limiter.limit(settings.chat_rate_limit)
+async def chat(request: Request, req: ChatRequest):
     return StreamingResponse(
         rag_chain.stream_rag_response(
             session_id=req.session_id,

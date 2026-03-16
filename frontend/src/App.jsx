@@ -4,11 +4,17 @@ import { ChatWindow } from "./components/ChatWindow";
 import { InputBar } from "./components/InputBar";
 import { RoleToggle, getStoredRole } from "./components/RoleToggle";
 import { StatusBanner } from "./components/StatusBanner";
+import { AdminDashboard } from "./pages/AdminDashboard";
 import "./styles/index.css";
 
 export default function App() {
   const [role, setRole] = useState(getStoredRole);
-  const { messages, isLoading, error, sendUserMessage, resetSession } = useChat(role);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const { messages, isLoading, error, sendUserMessage, resetSession, sessionId, submitFeedback } = useChat(role);
+
+  if (showAdmin) {
+    return <AdminDashboard onClose={() => setShowAdmin(false)} />;
+  }
 
   return (
     <div className="app">
@@ -24,11 +30,19 @@ export default function App() {
           <button className="new-chat-btn" onClick={resetSession} title="Start new conversation">
             New Chat
           </button>
+          <button className="admin-btn" onClick={() => setShowAdmin(true)} title="Admin dashboard">
+            Admin
+          </button>
         </div>
       </header>
 
       <main className="app-main">
-        <ChatWindow messages={messages} isLoading={isLoading} />
+        <ChatWindow
+          messages={messages}
+          isLoading={isLoading}
+          sessionId={sessionId}
+          onFeedback={submitFeedback}
+        />
       </main>
 
       {error && (

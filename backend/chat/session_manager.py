@@ -31,6 +31,16 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    message_index INTEGER NOT NULL,
+    rating TEXT NOT NULL CHECK(rating IN ('up', 'down')),
+    comment TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+);
 """
 
 
@@ -153,3 +163,59 @@ async def cleanup_loop():
             break
         except Exception as e:
             print(f"[session_manager] Cleanup error: {e}")
+
+
+async def add_feedback(
+    session_id: str,
+    message_index: int,
+    rating: str,
+    comment: str | None = None,
+) -> int:
+    """Insert a feedback record. Returns the new row id."""
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            "INSERT INTO feedback (session_id, message_index, rating, comment) VALUES (?, ?, ?, ?)",
+            (session_id, message_index, rating, comment),
+        )
+        await conn.commit()
+        return cursor.lastrowid
+
+
+async def get_feedback(limit: int = 50, offset: int = 0) -> list[dict]:
+    """Fetch feedback records newest-first with pagination."""
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            """
+            SELECT id, session_id, message_index, rating, comment, created_at
+            FROM feedback
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "message_index": row["message_index"],
+            "rating": row["rating"],
+            "comment": row["comment"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+async def get_feedback_stats() -> dict:
+    """Return aggregate counts: total, up, down."""
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            "SELECT rating, COUNT(*) as cnt FROM feedback GROUP BY rating"
+        )
+        rows = await cursor.fetchall()
+    stats = {"total": 0, "up": 0, "down": 0}
+    for row in rows:
+        stats[row["rating"]] = row["cnt"]
+        stats["total"] += row["cnt"]
+    return stats
