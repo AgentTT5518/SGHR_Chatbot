@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useRef } from "react";
-import { sendMessage, fetchHistory } from "../api/chatApi";
+import { sendMessage, fetchHistory, submitFeedback as apiFeedback } from "../api/chatApi";
 
 const SESSION_KEY = "hr_chat_session_id";
 const MESSAGES_KEY = "hr_chat_messages";
@@ -152,5 +152,14 @@ export function useChat(userRole) {
     dispatch({ type: "RESET_SESSION" });
   }
 
-  return { ...state, sendUserMessage, resetSession };
+  async function submitFeedback(messageIndex, rating, comment) {
+    await apiFeedback({
+      sessionId: state.sessionId,
+      messageIndex,
+      rating,
+      comment,
+    });
+  }
+
+  return { ...state, sendUserMessage, resetSession, submitFeedback };
 }

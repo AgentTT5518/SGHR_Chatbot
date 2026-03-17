@@ -32,6 +32,7 @@ def _mock_client(collection_names: list[str] = None, count: int = 10) -> MagicMo
     col = MagicMock()
     col.count.return_value = count
     col.query.return_value = {
+        "ids": [["id1", "id2"]],
         "documents": [["doc1", "doc2"]],
         "metadatas": [[{"source": "EA"}, {"source": "MOM"}]],
         "distances": [[0.1, 0.3]],
@@ -93,6 +94,7 @@ def test_query_returns_structured_results():
     with patch("backend.retrieval.vector_store.chromadb.PersistentClient", return_value=mock_client):
         results = query("employment_act", [0.1, 0.2, 0.3], n=5)
     assert len(results) == 2
+    assert results[0]["id"] == "id1"
     assert results[0]["text"] == "doc1"
     assert results[0]["metadata"] == {"source": "EA"}
     assert results[0]["distance"] == 0.1
@@ -109,6 +111,7 @@ def test_query_empty_collection_returns_empty():
 def test_query_caps_n_results_at_collection_count():
     mock_client, mock_col = _mock_client(count=3)
     mock_col.query.return_value = {
+        "ids": [["id1"]],
         "documents": [["d1"]],
         "metadatas": [[{"s": "x"}]],
         "distances": [[0.2]],

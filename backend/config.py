@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     max_tokens: int = 2048
     session_ttl_hours: int = 2
     session_history_pairs: int = 10
+    retrieval_mode: str = "hybrid"   # "semantic" | "hybrid"
+    chat_rate_limit: str = "20/minute"
+    admin_rate_limit: str = "10/minute"
 
     class Config:
         env_file = BASE_DIR.parent / ".env"

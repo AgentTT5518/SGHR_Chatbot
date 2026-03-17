@@ -169,3 +169,70 @@ class TestGetSection2:
         ):
             result = get_section_2()
         assert result is None
+
+
+# ── hybrid retrieve (RRF) ──────────────────────────────────────────────────────
+
+class TestHybridRetrieve:
+    def test_hybrid_falls_back_to_semantic_when_keyword_empty(self):
+        ea = [_chunk("ea text", distance=0.2)]
+        mom = [_chunk("mom text", distance=0.1)]
+
+        with (
+            patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
+            patch("backend.retrieval.retriever.vector_store.query", side_effect=[ea, mom]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
+            patch(
+                "backend.retrieval.keyword_search.get_searcher",
+                side_effect=Exception("no corpus"),
+            ),
+        ):
+            mock_settings.retrieval_mode = "hybrid"
+            from backend.retrieval.retriever import _hybrid_retrieve
+            results = _hybrid_retrieve("annual leave", 10)
+
+        assert len(results) > 0
+
+    def test_rrf_merges_lists_by_rank(self):
+        from backend.retrieval.retriever import _reciprocal_rank_fusion
+        semantic = [
+            {"text": "doc A text here", "metadata": {}, "distance": 0.1},
+            {"text": "doc B text here", "metadata": {}, "distance": 0.2},
+        ]
+        keyword = [
+            {"text": "doc B text here", "metadata": {}, "keyword_score": 0.9},
+            {"text": "doc C text here", "metadata": {}, "keyword_score": 0.5},
+        ]
+        merged = _reciprocal_rank_fusion(semantic, keyword)
+        texts = [d["text"] for d in merged]
+        # doc B appears in both lists so should rank high
+        assert "doc B text here" in texts
+        assert "doc A text here" in texts
+        assert "doc C text here" in texts
+
+    def test_rrf_returns_unique_docs(self):
+        from backend.retrieval.retriever import _reciprocal_rank_fusion
+        doc = {"text": "same document text", "metadata": {}, "distance": 0.1}
+        semantic = [doc]
+        keyword = [{"text": "same document text", "metadata": {}, "keyword_score": 0.8}]
+        merged = _reciprocal_rank_fusion(semantic, keyword)
+        texts = [d["text"] for d in merged]
+        assert texts.count("same document text") == 1
+
+    def test_apply_threshold_empty_returns_empty(self):
+        from backend.retrieval.retriever import _apply_threshold
+        assert _apply_threshold([]) == []
+
+    def test_retrieve_uses_semantic_when_mode_is_semantic(self):
+        ea = [_chunk("ea text", distance=0.15)]
+
+        with (
+            patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
+            patch("backend.retrieval.retriever.vector_store.query", side_effect=[ea, []]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
+        ):
+            mock_settings.retrieval_mode = "semantic"
+            from backend.retrieval.retriever import retrieve
+            results = retrieve("overtime")
+
+        assert len(results) > 0
