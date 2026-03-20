@@ -33,6 +33,9 @@ jobs:
       - name: Test
         run: python -m pytest tests/ -v
         timeout-minutes: 10
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
 
       - name: Secret scan
         run: |
