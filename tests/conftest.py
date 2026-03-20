@@ -1,8 +1,9 @@
 """
 Global test configuration.
 
-Prevents real model downloads in CI by mocking the SentenceTransformer
-import before any test module can trigger it.
+Patches SentenceTransformer constructor and ChromaDB readiness check so that
+tests using TestClient(app) never trigger a real model download or require
+a running ChromaDB instance.
 """
 from __future__ import annotations
 
@@ -12,18 +13,28 @@ import numpy as np
 import pytest
 
 
-def _make_mock_model():
-    """Return a mock SentenceTransformer that produces deterministic embeddings."""
-    mock = MagicMock()
-    mock.encode.return_value = np.random.default_rng(42).random((1, 768)).astype(np.float32)
-    return mock
+def _fake_encode(texts, **kwargs):
+    """Return deterministic embeddings matching BGE dimensions."""
+    rng = np.random.default_rng(42)
+    if isinstance(texts, str):
+        texts = [texts]
+    return rng.random((len(texts), 768)).astype(np.float32)
+
+
+_mock_model = MagicMock()
+_mock_model.encode.side_effect = _fake_encode
 
 
 @pytest.fixture(autouse=True, scope="session")
-def _mock_sentence_transformer():
-    """Prevent real SentenceTransformer model download during tests."""
-    mock_model = _make_mock_model()
-    with patch("backend.ingestion.embedder.SentenceTransformer", return_value=mock_model):
-        # Also reset the singleton so it doesn't hold a real model
-        with patch("backend.ingestion.embedder._model", None):
-            yield
+def _prevent_model_download():
+    """
+    Prevent SentenceTransformer model download across all tests.
+
+    Individual tests that patch SentenceTransformer themselves will
+    override this session-scoped patch (inner patch wins).
+    """
+    with patch(
+        "backend.ingestion.embedder.SentenceTransformer",
+        return_value=_mock_model,
+    ):
+        yield
