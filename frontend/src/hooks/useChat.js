@@ -3,6 +3,7 @@ import { sendMessage, fetchHistory, submitFeedback as apiFeedback } from "../api
 
 const SESSION_KEY = "hr_chat_session_id";
 const MESSAGES_KEY = "hr_chat_messages";
+const USER_KEY = "hr_chat_user_id";
 
 function generateId() {
   return crypto.randomUUID();
@@ -17,8 +18,18 @@ function getOrCreateSessionId() {
   return id;
 }
 
+function getOrCreateUserId() {
+  let id = localStorage.getItem(USER_KEY);
+  if (!id) {
+    id = generateId();
+    localStorage.setItem(USER_KEY, id);
+  }
+  return id;
+}
+
 const initialState = {
   sessionId: getOrCreateSessionId(),
+  userId: getOrCreateUserId(),
   messages: [],
   isLoading: true, // starts true while hydrating
   error: null,
@@ -135,6 +146,7 @@ export function useChat(userRole) {
 
     await sendMessage({
       sessionId: state.sessionId,
+      userId: state.userId,
       message: content,
       userRole: userRoleRef.current,
       onToken: (token) => dispatch({ type: "STREAM_TOKEN", id: assistantId, token }),

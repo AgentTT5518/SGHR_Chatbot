@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     retrieval_mode: str = "hybrid"   # "semantic" | "hybrid"
     chat_rate_limit: str = "20/minute"
     admin_rate_limit: str = "10/minute"
+    # Token budget settings (Phase 1)
+    context_window: int = 200_000  # claude-sonnet-4-6
+    max_output_tokens: int = 4_096
+    history_budget_ratio: float = 0.4
+    # Context manager settings
+    haiku_model: str = "claude-haiku-4-5-20251001"
+    summary_recent_pairs: int = 3  # keep last N pairs verbatim
 
     class Config:
         env_file = BASE_DIR.parent / ".env"

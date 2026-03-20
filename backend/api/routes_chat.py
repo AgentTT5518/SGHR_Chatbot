@@ -19,6 +19,7 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     user_role: str = "employee"  # "employee" | "hr"
+    user_id: str | None = None
 
 
 @router.post("/chat")
@@ -29,6 +30,7 @@ async def chat(request: Request, req: ChatRequest):
             session_id=req.session_id,
             user_message=req.message,
             user_role=req.user_role,
+            user_id=req.user_id,
         ),
         media_type="text/event-stream",
         headers={

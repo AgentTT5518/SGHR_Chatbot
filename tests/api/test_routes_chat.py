@@ -34,7 +34,7 @@ def test_chat_streams_response(client):
         '{"token": "", "done": true, "sources": []}',
     )
 
-    async def _fake_stream(session_id, user_message, user_role):
+    async def _fake_stream(session_id, user_message, user_role, user_id=None):
         for line in sse_body.split("\n\n"):
             if line.strip():
                 yield line + "\n\n"
@@ -53,7 +53,7 @@ def test_chat_streams_response(client):
 def test_chat_default_role_is_employee(client):
     captured = {}
 
-    async def _capture(session_id, user_message, user_role):
+    async def _capture(session_id, user_message, user_role, user_id=None):
         captured["user_role"] = user_role
         yield 'data: {"token": "", "done": true, "sources": []}\n\n'
 
@@ -69,7 +69,7 @@ def test_chat_default_role_is_employee(client):
 def test_chat_passes_hr_role(client):
     captured = {}
 
-    async def _capture(session_id, user_message, user_role):
+    async def _capture(session_id, user_message, user_role, user_id=None):
         captured["user_role"] = user_role
         yield 'data: {"token": "", "done": true, "sources": []}\n\n'
 

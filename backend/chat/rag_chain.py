@@ -3,15 +3,20 @@ RAG chain: retrieves context, builds prompt, streams Claude's response.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 
 import anthropic
 
 from backend.config import settings
-from backend.chat import session_manager
+from backend.chat import context_manager, session_manager
 from backend.chat.prompts import build_system_prompt, format_context, extract_sources
+from backend.chat.token_budget import TokenBudget, count_tokens
+from backend.lib.logger import get_logger
 from backend.retrieval import retriever
+
+log = get_logger(__name__)
 
 _client: anthropic.AsyncAnthropic | None = None
 
@@ -40,6 +45,7 @@ async def stream_rag_response(
     session_id: str,
     user_message: str,
     user_role: str = "employee",
+    user_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that yields SSE-formatted strings.
@@ -47,7 +53,7 @@ async def stream_rag_response(
     Final yield includes {"done": true, "sources": [...]}.
     """
     # Ensure session exists
-    await session_manager.get_or_create(session_id)
+    await session_manager.get_or_create(session_id, user_id=user_id)
 
     # 1. Retrieve relevant chunks
     chunks = retriever.retrieve(user_message)
@@ -66,15 +72,29 @@ async def stream_rag_response(
         await session_manager.add_message(session_id, "assistant", FALLBACK_MESSAGE)
         return
 
-    # 4. Build prompt + history
+    # 4. Build prompt + history (using context manager for budget-aware history)
     context = format_context(chunks)
     system_prompt = build_system_prompt(context, user_role)
-    history = await session_manager.get_history(session_id)
-    messages = history + [{"role": "user", "content": user_message}]
+    client = get_client()
+
+    # Allocate token budget for history
+    budget = TokenBudget()
+    base_tokens = await count_tokens(
+        client, [{"role": "user", "content": user_message}], system_prompt
+    )
+    alloc = budget.allocate(base_tokens)
+
+    # Build context with summary buffer
+    session_ctx = await context_manager.build_context(
+        session_id, alloc.history_budget, client=client
+    )
+    summary_block, recent_messages = context_manager.format_context_for_prompt(session_ctx)
+    if summary_block:
+        system_prompt += summary_block
+    messages = recent_messages + [{"role": "user", "content": user_message}]
 
     # 5. Stream Claude response
     full_response = ""
-    client = get_client()
     try:
         async with client.messages.stream(
             model=settings.claude_model,
@@ -100,3 +120,6 @@ async def stream_rag_response(
     # 7. Persist conversation turn
     await session_manager.add_message(session_id, "user", user_message)
     await session_manager.add_message(session_id, "assistant", full_response)
+
+    # 8. Trigger async summary update (non-blocking)
+    asyncio.create_task(context_manager.maybe_update_summary(session_id, client))

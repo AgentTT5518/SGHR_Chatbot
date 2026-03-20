@@ -11,6 +11,9 @@ from datetime import datetime, timedelta, timezone
 import aiosqlite
 
 from backend.config import SESSIONS_DB, settings
+from backend.lib.logger import get_logger
+
+log = get_logger(__name__)
 
 DB_PATH = str(SESSIONS_DB)
 
@@ -19,6 +22,9 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
+    user_id TEXT,
+    summary TEXT DEFAULT '',
+    session_facts_json TEXT DEFAULT '{}',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_active DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -52,22 +58,46 @@ async def _get_conn():
         yield conn
 
 
+async def _migrate_schema(conn: aiosqlite.Connection) -> None:
+    """Add columns introduced after initial release (idempotent)."""
+    cursor = await conn.execute("PRAGMA table_info(sessions)")
+    existing = {row[1] for row in await cursor.fetchall()}
+
+    migrations = [
+        ("user_id", "ALTER TABLE sessions ADD COLUMN user_id TEXT"),
+        ("summary", "ALTER TABLE sessions ADD COLUMN summary TEXT DEFAULT ''"),
+        ("session_facts_json", "ALTER TABLE sessions ADD COLUMN session_facts_json TEXT DEFAULT '{}'"),
+    ]
+    for col, sql in migrations:
+        if col not in existing:
+            await conn.execute(sql)
+            log.info("Migrated sessions table", extra={"added_column": col})
+    await conn.commit()
+
+
 async def init_db():
     """Create tables if they don't exist."""
     from pathlib import Path
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     async with _get_conn() as conn:
         await conn.executescript(CREATE_SCHEMA)
+        await _migrate_schema(conn)
         await conn.commit()
 
 
-async def get_or_create(session_id: str) -> None:
+async def get_or_create(session_id: str, user_id: str | None = None) -> None:
     now = datetime.now(timezone.utc).isoformat()
     async with _get_conn() as conn:
         await conn.execute(
-            "INSERT OR IGNORE INTO sessions (session_id, created_at, last_active) VALUES (?, ?, ?)",
-            (session_id, now, now),
+            "INSERT OR IGNORE INTO sessions (session_id, user_id, created_at, last_active) VALUES (?, ?, ?, ?)",
+            (session_id, user_id, now, now),
         )
+        # Update user_id if provided and session already exists without one
+        if user_id:
+            await conn.execute(
+                "UPDATE sessions SET user_id = ? WHERE session_id = ? AND (user_id IS NULL OR user_id = '')",
+                (user_id, session_id),
+            )
         await conn.commit()
 
 
@@ -138,6 +168,77 @@ async def delete_session(session_id: str) -> None:
         await conn.commit()
 
 
+async def update_summary(session_id: str, summary: str) -> None:
+    """Update the running conversation summary for a session."""
+    async with _get_conn() as conn:
+        await conn.execute(
+            "UPDATE sessions SET summary = ? WHERE session_id = ?",
+            (summary, session_id),
+        )
+        await conn.commit()
+
+
+async def update_session_facts(session_id: str, facts: dict) -> None:
+    """Update extracted session facts (merge with existing)."""
+    import json
+    async with _get_conn() as conn:
+        # Fetch existing facts and merge
+        cursor = await conn.execute(
+            "SELECT session_facts_json FROM sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        row = await cursor.fetchone()
+        existing: dict = {}
+        if row and row["session_facts_json"]:
+            try:
+                existing = json.loads(row["session_facts_json"])
+            except (json.JSONDecodeError, TypeError):
+                existing = {}
+        # Merge: new values overwrite, but don't overwrite with None/empty
+        for k, v in facts.items():
+            if v is not None and v != "":
+                existing[k] = v
+        await conn.execute(
+            "UPDATE sessions SET session_facts_json = ? WHERE session_id = ?",
+            (json.dumps(existing), session_id),
+        )
+        await conn.commit()
+
+
+async def get_session_context(session_id: str) -> dict:
+    """Return summary, facts, and message count for a session."""
+    import json
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            "SELECT summary, session_facts_json FROM sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {"summary": "", "facts": {}, "message_count": 0}
+
+        facts: dict = {}
+        if row["session_facts_json"]:
+            try:
+                facts = json.loads(row["session_facts_json"])
+            except (json.JSONDecodeError, TypeError):
+                facts = {}
+
+        # Get message count
+        count_cursor = await conn.execute(
+            "SELECT COUNT(*) as cnt FROM messages WHERE session_id = ?",
+            (session_id,),
+        )
+        count_row = await count_cursor.fetchone()
+        msg_count = count_row["cnt"] if count_row else 0
+
+    return {
+        "summary": row["summary"] or "",
+        "facts": facts,
+        "message_count": msg_count,
+    }
+
+
 async def cleanup_stale_sessions(ttl_hours: int | None = None) -> int:
     """Delete sessions inactive longer than ttl_hours. Returns count deleted."""
     if ttl_hours is None:
@@ -158,11 +259,11 @@ async def cleanup_loop():
             await asyncio.sleep(3600)  # run every hour
             deleted = await cleanup_stale_sessions()
             if deleted:
-                print(f"[session_manager] Cleaned up {deleted} stale sessions")
+                log.info("Cleaned up stale sessions", extra={"deleted": deleted})
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            print(f"[session_manager] Cleanup error: {e}")
+        except Exception:
+            log.error("Session cleanup error", exc_info=True)
 
 
 async def add_feedback(
