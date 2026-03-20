@@ -149,7 +149,8 @@ async def generate_summary(
             ),
             messages=[{"role": "user", "content": "\n".join(prompt_parts)}],
         )
-        summary = response.content[0].text.strip()
+        block = response.content[0]
+        summary = (block.text if hasattr(block, "text") else str(block)).strip()
         log.info("Generated session summary", extra={"length": len(summary)})
         return summary
     except Exception:
@@ -181,7 +182,8 @@ async def extract_facts(
             ),
             messages=[{"role": "user", "content": conversation_text}],
         )
-        text = response.content[0].text.strip()
+        block = response.content[0]
+        text = (block.text if hasattr(block, "text") else str(block)).strip()
         # Try to parse JSON from response
         facts = json.loads(text)
         if isinstance(facts, dict):
