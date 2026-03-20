@@ -85,3 +85,16 @@ async def collection_counts(request: Request):
         return {"employment_act": ea, "mom_guidelines": mom}
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/escalations")
+@limiter.limit(settings.admin_rate_limit)
+async def list_escalations(
+    request: Request,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List escalation records, optionally filtered by status."""
+    from backend.chat.session_manager import get_escalations
+    return await get_escalations(status=status, limit=limit, offset=offset)

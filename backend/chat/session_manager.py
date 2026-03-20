@@ -47,6 +47,15 @@ CREATE TABLE IF NOT EXISTS feedback (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS escalations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'resolved')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+);
 """
 
 
@@ -320,3 +329,66 @@ async def get_feedback_stats() -> dict:
         stats[row["rating"]] = row["cnt"]
         stats["total"] += row["cnt"]
     return stats
+
+
+# ── Escalations ──────────────────────────────────────────────────────────────
+
+async def create_escalation(session_id: str, reason: str) -> int:
+    """Create an escalation record. Returns the new escalation ID."""
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            "INSERT INTO escalations (session_id, reason) VALUES (?, ?)",
+            (session_id, reason),
+        )
+        await conn.commit()
+        return cursor.lastrowid
+
+
+async def get_escalations(
+    status: str | None = None, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Fetch escalation records newest-first with optional status filter."""
+    async with _get_conn() as conn:
+        if status:
+            cursor = await conn.execute(
+                """
+                SELECT id, session_id, reason, status, created_at
+                FROM escalations
+                WHERE status = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (status, limit, offset),
+            )
+        else:
+            cursor = await conn.execute(
+                """
+                SELECT id, session_id, reason, status, created_at
+                FROM escalations
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            )
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "reason": row["reason"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+async def update_escalation_status(escalation_id: int, status: str) -> bool:
+    """Update an escalation's status. Returns True if a row was updated."""
+    async with _get_conn() as conn:
+        cursor = await conn.execute(
+            "UPDATE escalations SET status = ? WHERE id = ?",
+            (status, escalation_id),
+        )
+        await conn.commit()
+        return cursor.rowcount > 0

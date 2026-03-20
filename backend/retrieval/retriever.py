@@ -38,6 +38,24 @@ def retrieve(query: str, n_per_collection: int = 10) -> list[dict]:
     return _semantic_retrieve(query, n_per_collection)
 
 
+def retrieve_from_collection(
+    query: str,
+    collection: str,
+    n: int = 10,
+    section_filter: str | None = None,
+) -> list[dict]:
+    """
+    Retrieve chunks from a single collection.
+    Optionally filter by metadata (e.g. section_filter="Part IV" filters by the 'part' field).
+    """
+    q_embedding = embed_query(query)
+    where: dict | None = None
+    if section_filter:
+        where = {"part": section_filter}
+    results = vector_store.query(collection, q_embedding, n=n, where=where)
+    return _apply_threshold(results)
+
+
 def _semantic_retrieve(query: str, n_per_collection: int) -> list[dict]:
     """Pure semantic retrieval (original logic)."""
     q_embedding = embed_query(query)
