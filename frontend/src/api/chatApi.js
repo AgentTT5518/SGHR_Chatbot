@@ -5,7 +5,7 @@ const API_BASE = ""; // Vite proxy routes /api, /health, /admin to localhost:800
  * Calls onToken(text) for each streamed token.
  * Returns { sources } on completion.
  */
-export async function sendMessage({ sessionId, message, userRole, onToken, onError }) {
+export async function sendMessage({ sessionId, userId, message, userRole, onToken, onError }) {
   let sources = [];
   try {
     const response = await fetch(`${API_BASE}/api/chat`, {
@@ -13,6 +13,7 @@ export async function sendMessage({ sessionId, message, userRole, onToken, onErr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         session_id: sessionId,
+        user_id: userId,
         message,
         user_role: userRole,
       }),

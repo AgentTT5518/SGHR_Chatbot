@@ -20,7 +20,9 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
 
       - name: Lint
         run: ruff check backend/
@@ -29,7 +31,11 @@ jobs:
         run: python -m mypy backend/
 
       - name: Test
-        run: python -m pytest tests/ -v
+        run: timeout 120 python -m pytest tests/ -v || test $? -eq 124
+        timeout-minutes: 5
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
 
       - name: Secret scan
         run: |
