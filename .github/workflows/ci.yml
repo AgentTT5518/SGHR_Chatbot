@@ -31,8 +31,8 @@ jobs:
         run: python -m mypy backend/
 
       - name: Test
-        run: python -m pytest tests/ -v
-        timeout-minutes: 10
+        run: timeout 120 python -m pytest tests/ -v
+        timeout-minutes: 5
         env:
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
