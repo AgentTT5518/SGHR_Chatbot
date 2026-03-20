@@ -28,20 +28,30 @@ def get_collection(name: str) -> Collection:
     return _collections[name]
 
 
-def query(collection_name: str, query_embedding: list[float], n: int = 10) -> list[dict]:
+def query(
+    collection_name: str,
+    query_embedding: list[float],
+    n: int = 10,
+    where: dict | None = None,
+) -> list[dict]:
     """
     Query a ChromaDB collection.
     Returns list of {id, text, metadata, distance} dicts sorted by distance (ascending).
+    Optional `where` dict is passed directly to ChromaDB as a metadata filter.
     """
     col = get_collection(collection_name)
     if col.count() == 0:
         return []
 
-    results = col.query(
-        query_embeddings=[query_embedding],
-        n_results=min(n, col.count()),
-        include=["documents", "metadatas", "distances"],
-    )
+    query_kwargs: dict = {
+        "query_embeddings": [query_embedding],
+        "n_results": min(n, col.count()),
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if where:
+        query_kwargs["where"] = where
+
+    results = col.query(**query_kwargs)
 
     output = []
     for doc_id, doc, meta, dist in zip(
