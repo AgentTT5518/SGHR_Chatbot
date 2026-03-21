@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Context manager settings
     haiku_model: str = "claude-haiku-4-5-20251001"
     summary_recent_pairs: int = 3  # keep last N pairs verbatim
+    # Orchestrator settings (Phase 2)
+    use_orchestrator: bool = True
+    max_tool_iterations: int = 5
 
     class Config:
         env_file = BASE_DIR.parent / ".env"

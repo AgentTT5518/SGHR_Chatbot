@@ -4,15 +4,18 @@ Role-based prompts surface different content for HR professionals vs employees.
 """
 
 
-def build_system_prompt(context: str, user_role: str = "employee") -> str:
+def build_system_prompt(context: str | None = None, user_role: str = "employee") -> str:
+    """Build the system prompt for Claude.
+
+    Args:
+        context: Retrieved source documents block. When None (orchestrator mode),
+                 tool-use guidance is included instead.
+        user_role: "employee" or "hr".
+    """
     role_instructions = _get_role_instructions(user_role)
-    return f"""You are an HR assistant specialising in Singapore employment law and HR practices.
-You answer questions based ONLY on the source documents provided below.
 
-{role_instructions}
-
-SHARED RULES (apply to all users):
-- Answer ONLY from the provided source documents. Do not fabricate or invent legal provisions.
+    shared_rules = """SHARED RULES (apply to all users):
+- Do not fabricate or invent legal provisions.
 - Always cite the specific source for every legal claim:
   - For the Employment Act: cite the Part and Section number (e.g. "Employment Act, Part IV, s 38").
   - For MOM guidelines: cite the page title and URL.
@@ -20,14 +23,36 @@ SHARED RULES (apply to all users):
   - Distinguish between "workmen" (manual workers earning up to S$4,500/month) and other employees.
   - Note when provisions apply only to employees earning below the S$2,600/month threshold.
   - Note when provisions do not apply to managers/executives above S$4,500/month.
-- If a question cannot be answered from the provided documents, say so clearly and recommend the user consult:
+- If a question cannot be answered from available information, say so clearly and recommend the user consult:
   - MOM directly at www.mom.gov.sg or call 6438 5122
   - A Singapore employment lawyer for specific legal advice
 - Do not provide investment, financial, or tax advice.
-- Respond in clear, structured English. Use bullet points or numbered lists where helpful.
+- Respond in clear, structured English. Use bullet points or numbered lists where helpful."""
+
+    if context is not None:
+        # Legacy mode (rag_chain): context provided inline
+        return f"""You are an HR assistant specialising in Singapore employment law and HR practices.
+You answer questions based ONLY on the source documents provided below.
+
+{role_instructions}
+
+{shared_rules}
 
 SOURCE DOCUMENTS:
 {context}"""
+    else:
+        # Orchestrator mode: tools handle retrieval
+        return f"""You are an HR assistant specialising in Singapore employment law and HR practices.
+You have access to tools for searching the Employment Act, MOM guidelines, calculating leave \
+and notice period entitlements, and checking employee eligibility. Use them when needed to answer \
+the user's question accurately.
+
+{role_instructions}
+
+{shared_rules}
+
+Answer ONLY based on information returned by your tools. If none of your tools return relevant \
+information, say so clearly."""
 
 
 def _get_role_instructions(user_role: str) -> str:

@@ -42,9 +42,10 @@ def _mom_chunk(title: str, url: str, text: str) -> dict:
 # ── build_system_prompt ───────────────────────────────────────────────────────
 
 class TestBuildSystemPrompt:
-    def test_contains_context(self):
+    def test_contains_context_legacy_mode(self):
         prompt = build_system_prompt("SOME CONTEXT", "employee")
         assert "SOME CONTEXT" in prompt
+        assert "SOURCE DOCUMENTS" in prompt
 
     def test_employee_role_instructions(self):
         prompt = build_system_prompt("ctx", "employee")
@@ -69,6 +70,23 @@ class TestBuildSystemPrompt:
 
     def test_prompt_is_string(self):
         assert isinstance(build_system_prompt("ctx", "employee"), str)
+
+    def test_orchestrator_mode_no_context(self):
+        prompt = build_system_prompt(None, "employee")
+        assert "SOURCE DOCUMENTS" not in prompt
+        assert "tools" in prompt.lower()
+        assert "EMPLOYEE" in prompt.upper()
+
+    def test_orchestrator_mode_hr(self):
+        prompt = build_system_prompt(None, "hr")
+        assert "tools" in prompt.lower()
+        assert "HR PROFESSIONAL" in prompt.upper() or "EMPLOYER" in prompt.upper()
+
+    def test_orchestrator_mode_shared_rules(self):
+        for role in ("employee", "hr"):
+            prompt = build_system_prompt(None, role)
+            assert "mom.gov.sg" in prompt
+            assert "fabricate" in prompt.lower() or "invent" in prompt.lower()
 
 
 # ── format_context ────────────────────────────────────────────────────────────

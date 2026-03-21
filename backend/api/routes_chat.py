@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from backend.chat import rag_chain, session_manager
+from backend.chat import orchestrator, rag_chain, session_manager
 from backend.config import settings
 from backend.lib.limiter import limiter
 
@@ -25,13 +25,22 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 @limiter.limit(settings.chat_rate_limit)
 async def chat(request: Request, req: ChatRequest):
-    return StreamingResponse(
-        rag_chain.stream_rag_response(
+    if settings.use_orchestrator:
+        stream = orchestrator.orchestrate(
+            session_id=req.session_id,
+            user_id=req.user_id or "",
+            user_message=req.message,
+            user_role=req.user_role,
+        )
+    else:
+        stream = rag_chain.stream_rag_response(
             session_id=req.session_id,
             user_message=req.message,
             user_role=req.user_role,
             user_id=req.user_id,
-        ),
+        )
+    return StreamingResponse(
+        stream,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

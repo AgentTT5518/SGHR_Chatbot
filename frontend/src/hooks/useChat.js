@@ -57,12 +57,24 @@ function reducer(state, action) {
         content: "",
         sources: [],
         isStreaming: true,
+        thinkingSteps: [],
       };
       return {
         ...state,
         messages: [...state.messages, userMsg, assistantMsg],
         isLoading: true,
         error: null,
+      };
+    }
+
+    case "STREAM_STATUS": {
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.id
+            ? { ...m, thinkingSteps: [...(m.thinkingSteps || []), action.detail] }
+            : m
+        ),
       };
     }
 
@@ -150,6 +162,7 @@ export function useChat(userRole) {
       message: content,
       userRole: userRoleRef.current,
       onToken: (token) => dispatch({ type: "STREAM_TOKEN", id: assistantId, token }),
+      onStatus: (detail) => dispatch({ type: "STREAM_STATUS", id: assistantId, detail }),
       onError: (err) => {
         dispatch({ type: "STREAM_TOKEN", id: assistantId, token: `\n\n*Error: ${err}*` });
         dispatch({ type: "STREAM_COMPLETE", id: assistantId, sources: [] });
