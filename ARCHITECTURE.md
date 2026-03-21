@@ -1,6 +1,6 @@
 # Architecture — SGHR Chatbot
 
-> Last updated: 2026-03-20 | Updated by: Claude Code
+> Last updated: 2026-03-21 | Updated by: Claude Code
 
 ## System Overview
 SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Singapore Employment Act and MOM guidelines. It serves employees and HR managers via a React chat interface, streaming responses from Claude through a FastAPI backend backed by ChromaDB vector search.
@@ -16,7 +16,9 @@ graph TB
     subgraph Server["Backend (FastAPI :8000)"]
         API[API Routes]
         FEEDBACK[Feedback Routes]
-        RAG[RAG Chain]
+        ORCH[Orchestrator]
+        RAG[RAG Chain\nlegacy fallback]
+        TOOLS[Tool Registry\n+ Dispatch]
         SM[Session Manager]
         RET[Retriever]
         KS[Keyword Search]
@@ -37,8 +39,13 @@ graph TB
     UI -->|POST /api/chat SSE| API
     UI -->|POST /api/feedback| FEEDBACK
     ADMIN -->|GET /admin/* + /metrics| API
-    API --> RAG
+    API -->|use_orchestrator=true| ORCH
+    API -->|use_orchestrator=false| RAG
     API --> LIMITER
+    ORCH --> TOOLS
+    ORCH -->|stream| CLAUDE
+    ORCH --> SM
+    TOOLS --> RET
     FEEDBACK --> SM
     RAG --> SM
     RAG --> RET
@@ -55,10 +62,11 @@ graph TB
 
 | Component | Location | Responsibility | Dependencies |
 |-----------|----------|----------------|--------------|
-| API Routes - Chat | `backend/api/routes_chat.py` | POST /api/chat (SSE), session history, session delete | rag_chain, session_manager, limiter |
+| API Routes - Chat | `backend/api/routes_chat.py` | POST /api/chat (SSE), session history, session delete | orchestrator, rag_chain, session_manager, limiter |
+| Orchestrator | `backend/chat/orchestrator.py` | Agentic tool-use loop: streams Claude response, detects tool_use, dispatches tools, emits status/token/done SSE events | tool registry, session_manager, context_manager, token_budget, prompts, Anthropic SDK |
 | API Routes - Admin | `backend/api/routes_admin.py` | Admin/ingestion triggers, health checks, collection counts, escalations list | ingestion pipeline, session_manager, limiter |
 | API Routes - Feedback | `backend/api/routes_feedback.py` | POST /api/feedback, GET /admin/feedback, GET /admin/feedback/stats | session_manager |
-| RAG Chain | `backend/chat/rag_chain.py` | Retrieve → prompt → stream Claude response (with budget-aware context) | retriever, session_manager, context_manager, token_budget, prompts, Anthropic SDK |
+| RAG Chain (legacy) | `backend/chat/rag_chain.py` | Legacy pipeline: retrieve → prompt → stream Claude response (fallback when use_orchestrator=False) | retriever, session_manager, context_manager, token_budget, prompts, Anthropic SDK |
 | Token Budget | `backend/chat/token_budget.py` | Token counting (Anthropic API + tiktoken fallback), budget allocation | anthropic, tiktoken |
 | Context Manager | `backend/chat/context_manager.py` | SummaryBuffer: compresses older history via Haiku, extracts session facts | session_manager, token_budget, Anthropic SDK (Haiku) |
 | Session Manager | `backend/chat/session_manager.py` | CRUD for conversation history + feedback + escalations + summary + facts, TTL cleanup | aiosqlite, SQLite |
@@ -129,18 +137,23 @@ graph TB
 ```
 Client Error  -> FastAPI validation -> 422 JSON response
 Rate Limit    -> slowapi -> 429 JSON with Retry-After header
-API Error     -> try/except in rag_chain -> SSE error event to client
+API Error     -> try/except in orchestrator/rag_chain -> SSE error event to client
 Claude Error  -> anthropic.APIError caught -> error SSE token
+Tool Error    -> caught in orchestrator -> error result sent back to Claude
 Service Error -> log.error() -> propagate or fallback message
 Zero results  -> FALLBACK_MESSAGE streamed + session still saved
+Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 ```
 
 ### API Error Response Format (non-streaming)
 ```json
 { "detail": "Human-readable description" }
 ```
-### SSE Error Format (streaming)
+### SSE Event Formats (streaming)
 ```json
+{ "token": "text chunk", "done": false }
+{ "status": "thinking", "detail": "Searching Employment Act..." }
+{ "token": "", "done": true, "sources": [{"label": "...", "url": "..."}] }
 { "error": "Human-readable description", "done": true, "sources": [] }
 ```
 
@@ -177,6 +190,7 @@ Zero results  -> FALLBACK_MESSAGE streamed + session still saved
 | Enhancements V2 (Features 3–7) | 2026-03-16 | User feedback (thumbs up/down → SQLite); slowapi rate limiting (20/min chat, 10/min admin); hybrid retrieval with TF-IDF + RRF; in-memory metrics middleware; admin dashboard UI with 4 tabs | `session_manager.py`, `routes_feedback.py`, `routes_chat.py`, `routes_admin.py`, `main.py`, `config.py`, `keyword_search.py`, `retriever.py`, `vector_store.py`, `lib/limiter.py`, `lib/metrics.py`, `MessageBubble.jsx`, `ChatWindow.jsx`, `App.jsx`, `useChat.js`, `chatApi.js`, `adminApi.js`, `AdminDashboard.jsx`, `index.css`, `requirements.txt` |
 | Enhancing Chatbot Phase 1 | 2026-03-20 | Persistent anonymous user_id (localStorage); token budget manager (Anthropic count_tokens API + tiktoken fallback, 40/60 history/context split); SummaryBuffer context manager (Haiku summarization, fact extraction, system prompt injection); CI: CPU-only PyTorch, conftest mock for SentenceTransformer | `token_budget.py`, `context_manager.py`, `session_manager.py`, `rag_chain.py`, `routes_chat.py`, `config.py`, `useChat.js`, `chatApi.js`, `requirements.txt`, `ci.yml`, `conftest.py` |
 | Enhancing Chatbot Phase 2 — Tools | 2026-03-20 | Tool registry with 8 Anthropic-format tool schemas and async dispatch; 4 retrieval tools (per-collection search, definitions lookup); 2 calculation tools (leave entitlement with EA s43/s89/Part IX, notice period with EA s10); 2 routing tools (EA eligibility check with salary thresholds, HR escalation to SQLite); metadata filtering via ChromaDB where-clauses; escalations table + admin endpoint | `tools/registry.py`, `tools/retrieval_tools.py`, `tools/calculation_tools.py`, `tools/routing_tools.py`, `retriever.py`, `vector_store.py`, `session_manager.py`, `routes_admin.py` |
+| Enhancing Chatbot Phase 2 — Orchestrator | 2026-03-21 | Agentic tool-use loop replaces static RAG pipeline; streaming throughout all iterations (no double API call); status SSE events for tool dispatch; source extraction from tool results; max 5 iterations with graceful fallback; feature flag (use_orchestrator) for legacy fallback; simplified system prompt for tool-use mode; frontend thinking steps UI | `orchestrator.py`, `prompts.py`, `routes_chat.py`, `config.py`, `chatApi.js`, `useChat.js`, `MessageBubble.jsx`, `index.css` |
 
 > Add a row after completing each feature.
 

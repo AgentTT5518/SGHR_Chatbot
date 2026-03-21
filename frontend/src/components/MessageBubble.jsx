@@ -17,6 +17,14 @@ export function MessageBubble({ message, messageIndex, sessionId, onFeedback }) 
   return (
     <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
       <div className="message-role">{isUser ? "You" : "HR Assistant"}</div>
+      {message.thinkingSteps && message.thinkingSteps.length > 0 && (
+        <div className="thinking-steps">
+          {message.thinkingSteps.map((step, i) => (
+            <div key={i} className="thinking-step">{step}</div>
+          ))}
+        </div>
+      )}
+
       <div className="message-content">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {message.content || (message.isStreaming ? "▋" : "")}

@@ -39,7 +39,10 @@ def test_chat_streams_response(client):
             if line.strip():
                 yield line + "\n\n"
 
-    with patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_fake_stream):
+    with (
+        patch("backend.api.routes_chat.settings.use_orchestrator", False),
+        patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_fake_stream),
+    ):
         resp = client.post("/api/chat", json={
             "session_id": "test-sess-1",
             "message": "What is annual leave?",
@@ -57,7 +60,10 @@ def test_chat_default_role_is_employee(client):
         captured["user_role"] = user_role
         yield 'data: {"token": "", "done": true, "sources": []}\n\n'
 
-    with patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_capture):
+    with (
+        patch("backend.api.routes_chat.settings.use_orchestrator", False),
+        patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_capture),
+    ):
         client.post("/api/chat", json={
             "session_id": "test-sess-2",
             "message": "hello",
@@ -73,7 +79,10 @@ def test_chat_passes_hr_role(client):
         captured["user_role"] = user_role
         yield 'data: {"token": "", "done": true, "sources": []}\n\n'
 
-    with patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_capture):
+    with (
+        patch("backend.api.routes_chat.settings.use_orchestrator", False),
+        patch("backend.api.routes_chat.rag_chain.stream_rag_response", side_effect=_capture),
+    ):
         client.post("/api/chat", json={
             "session_id": "test-sess-3",
             "message": "hello",
