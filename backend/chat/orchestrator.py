@@ -10,8 +10,10 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import anthropic
+from anthropic.types import ToolParam
 
 from backend.chat import context_manager, session_manager
 from backend.chat.prompts import build_system_prompt
@@ -125,12 +127,13 @@ async def orchestrate(
     # Ensure tools are registered
     register_all_tools()
 
-    tools = get_all_schemas()
+    tools: list[ToolParam] = get_all_schemas()  # type: ignore[assignment]  # registry returns list[dict]
 
     # Allocate token budget for history
     budget = TokenBudget()
     base_tokens = await count_tokens(
-        client, [{"role": "user", "content": user_message}], system_prompt, tools
+        client, [{"role": "user", "content": user_message}], system_prompt,
+        tools,  # type: ignore[arg-type]
     )
     alloc = budget.allocate(base_tokens)
 
@@ -141,7 +144,7 @@ async def orchestrate(
     summary_block, recent_messages = context_manager.format_context_for_prompt(session_ctx)
     if summary_block:
         system_prompt += summary_block
-    messages: list[dict] = recent_messages + [{"role": "user", "content": user_message}]
+    messages: list[Any] = recent_messages + [{"role": "user", "content": user_message}]
 
     # 2. Agentic loop — streaming throughout
     max_iterations = settings.max_tool_iterations
