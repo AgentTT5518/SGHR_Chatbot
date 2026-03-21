@@ -1,6 +1,6 @@
 # Architecture — SGHR Chatbot
 
-> Last updated: 2026-03-21 | Updated by: Claude Code
+> Last updated: 2026-03-21 (Phase 3) | Updated by: Claude Code
 
 ## System Overview
 SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Singapore Employment Act and MOM guidelines. It serves employees and HR managers via a React chat interface, streaming responses from Claude through a FastAPI backend backed by ChromaDB vector search.
@@ -16,10 +16,14 @@ graph TB
     subgraph Server["Backend (FastAPI :8000)"]
         API[API Routes]
         FEEDBACK[Feedback Routes]
+        PROFILE[Profile Routes]
         ORCH[Orchestrator]
         RAG[RAG Chain\nlegacy fallback]
         TOOLS[Tool Registry\n+ Dispatch]
         SM[Session Manager]
+        PS[Profile Store]
+        FE[Fact Extractor]
+        SC[Semantic Cache]
         RET[Retriever]
         KS[Keyword Search]
         METRICS[Metrics Middleware]
@@ -27,8 +31,8 @@ graph TB
     end
 
     subgraph Storage
-        CHROMA[(ChromaDB\nVector Store)]
-        SQLITE[(SQLite\nSessions + Feedback)]
+        CHROMA[(ChromaDB\nVector Store\n+ Verified Answers)]
+        SQLITE[(SQLite\nSessions + Profiles)]
     end
 
     subgraph External
@@ -45,6 +49,13 @@ graph TB
     ORCH --> TOOLS
     ORCH -->|stream| CLAUDE
     ORCH --> SM
+    ORCH -->|cache check| SC
+    ORCH -->|load profile| PS
+    ORCH -->|extract facts| FE
+    PROFILE --> PS
+    PS --> SQLITE
+    SC --> CHROMA
+    FE -->|Haiku| CLAUDE
     TOOLS --> RET
     FEEDBACK --> SM
     RAG --> SM
@@ -63,9 +74,13 @@ graph TB
 | Component | Location | Responsibility | Dependencies |
 |-----------|----------|----------------|--------------|
 | API Routes - Chat | `backend/api/routes_chat.py` | POST /api/chat (SSE), session history, session delete | orchestrator, rag_chain, session_manager, limiter |
-| Orchestrator | `backend/chat/orchestrator.py` | Agentic tool-use loop: streams Claude response, detects tool_use, dispatches tools, emits status/token/done SSE events | tool registry, session_manager, context_manager, token_budget, prompts, Anthropic SDK |
-| API Routes - Admin | `backend/api/routes_admin.py` | Admin/ingestion triggers, health checks, collection counts, escalations list | ingestion pipeline, session_manager, limiter |
+| Orchestrator | `backend/chat/orchestrator.py` | Agentic tool-use loop: streams Claude response, detects tool_use, dispatches tools, emits status/token/done SSE events; semantic cache check before loop; profile injection into system prompt; async profile update after response | tool registry, session_manager, context_manager, token_budget, prompts, profile_store, fact_extractor, semantic_cache, Anthropic SDK |
+| API Routes - Admin | `backend/api/routes_admin.py` | Admin/ingestion triggers, health checks, collection counts, escalations list, verified answers CRUD, feedback candidates | ingestion pipeline, session_manager, semantic_cache, limiter |
 | API Routes - Feedback | `backend/api/routes_feedback.py` | POST /api/feedback, GET /admin/feedback, GET /admin/feedback/stats | session_manager |
+| API Routes - Profile | `backend/api/routes_profile.py` | GET /api/profile/{user_id}, DELETE /api/profile/{user_id} (privacy) | profile_store |
+| Profile Store | `backend/memory/profile_store.py` | SQLite CRUD for user employment profiles; merge-without-overwrite upsert; stale cleanup | aiosqlite |
+| Fact Extractor | `backend/memory/fact_extractor.py` | Haiku-based extraction of employment facts from conversation | Anthropic SDK (Haiku) |
+| Semantic Cache | `backend/memory/semantic_cache.py` | Verified Q&A cache in ChromaDB; two-tier similarity matching (high/medium); add/remove/list | vector_store, embedder |
 | RAG Chain (legacy) | `backend/chat/rag_chain.py` | Legacy pipeline: retrieve → prompt → stream Claude response (fallback when use_orchestrator=False) | retriever, session_manager, context_manager, token_budget, prompts, Anthropic SDK |
 | Token Budget | `backend/chat/token_budget.py` | Token counting (Anthropic API + tiktoken fallback), budget allocation | anthropic, tiktoken |
 | Context Manager | `backend/chat/context_manager.py` | SummaryBuffer: compresses older history via Haiku, extracts session facts | session_manager, token_budget, Anthropic SDK (Haiku) |
@@ -98,13 +113,17 @@ graph TB
 | Message | SQLite `messages` | id, session_id, role, content, created_at | Belongs to Session |
 | Feedback | SQLite `feedback` | id, session_id, message_index, rating (up/down), comment, created_at | Belongs to Session |
 | Escalation | SQLite `escalations` | id, session_id, reason, status (pending/reviewed/resolved), created_at | Belongs to Session |
+| User Profile | SQLite `user_profiles` | user_id (PK), employment_type, salary_bracket, tenure_years, company, topics_json, preferences_json, created_at, updated_at | — |
 | Document Chunk | ChromaDB | id, text, metadata (source, section, page) | — |
+| Verified Answer | ChromaDB `verified_answers` | id, document (answer), metadata (question, sources JSON) | — |
 
 ### Schema Notes
 - Sessions expire after `SESSION_TTL_HOURS` (default 2h); background cleanup loop runs every 1 hour
 - Feedback is tied to `session_id` + `message_index`; cascades on session delete
-- ChromaDB uses two collections: `employment_act` (PDF) and `mom_guidelines` (web)
+- User profiles auto-deleted after 2 years inactive (`PROFILE_RETENTION_YEARS`)
+- ChromaDB uses three collections: `employment_act` (PDF), `mom_guidelines` (web), `verified_answers` (cache)
 - BGE embeddings are 768-dimensional
+- Semantic cache uses two-tier thresholds: high (>= 0.95) and medium (>= 0.88), configurable via `.env`
 
 ## API Endpoints
 
@@ -122,6 +141,12 @@ graph TB
 | GET | `/admin/feedback` | Paginated list of feedback records | No | — | ✅ |
 | GET | `/admin/feedback/stats` | Aggregate up/down counts | No | — | ✅ |
 | GET | `/admin/escalations` | Paginated list of escalation records (filterable by status) | No | 10/min per IP | ✅ |
+| GET | `/api/profile/{user_id}` | Return user profile data | No | — | ✅ |
+| DELETE | `/api/profile/{user_id}` | Delete user profile (privacy compliance) | No | — | ✅ |
+| GET | `/admin/verified-answers` | List all cached verified answers | No | 10/min per IP | ✅ |
+| POST | `/admin/verified-answers` | Add verified answer to semantic cache | No | 10/min per IP | ✅ |
+| DELETE | `/admin/verified-answers/{id}` | Remove verified answer from cache | No | 10/min per IP | ✅ |
+| GET | `/admin/feedback/candidates` | Thumbs-up answers not yet in cache | No | 10/min per IP | ✅ |
 
 ## External Integrations
 
@@ -191,6 +216,7 @@ Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 | Enhancing Chatbot Phase 1 | 2026-03-20 | Persistent anonymous user_id (localStorage); token budget manager (Anthropic count_tokens API + tiktoken fallback, 40/60 history/context split); SummaryBuffer context manager (Haiku summarization, fact extraction, system prompt injection); CI: CPU-only PyTorch, conftest mock for SentenceTransformer | `token_budget.py`, `context_manager.py`, `session_manager.py`, `rag_chain.py`, `routes_chat.py`, `config.py`, `useChat.js`, `chatApi.js`, `requirements.txt`, `ci.yml`, `conftest.py` |
 | Enhancing Chatbot Phase 2 — Tools | 2026-03-20 | Tool registry with 8 Anthropic-format tool schemas and async dispatch; 4 retrieval tools (per-collection search, definitions lookup); 2 calculation tools (leave entitlement with EA s43/s89/Part IX, notice period with EA s10); 2 routing tools (EA eligibility check with salary thresholds, HR escalation to SQLite); metadata filtering via ChromaDB where-clauses; escalations table + admin endpoint | `tools/registry.py`, `tools/retrieval_tools.py`, `tools/calculation_tools.py`, `tools/routing_tools.py`, `retriever.py`, `vector_store.py`, `session_manager.py`, `routes_admin.py` |
 | Enhancing Chatbot Phase 2 — Orchestrator | 2026-03-21 | Agentic tool-use loop replaces static RAG pipeline; streaming throughout all iterations (no double API call); status SSE events for tool dispatch; source extraction from tool results; max 5 iterations with graceful fallback; feature flag (use_orchestrator) for legacy fallback; simplified system prompt for tool-use mode; frontend thinking steps UI | `orchestrator.py`, `prompts.py`, `routes_chat.py`, `config.py`, `chatApi.js`, `useChat.js`, `MessageBubble.jsx`, `index.css` |
+| Enhancing Chatbot Phase 3 — Profile & Cache | 2026-03-21 | Profile memory store (SQLite user_profiles, Haiku fact extraction, merge-without-overwrite upsert, 2yr stale cleanup); Verified Q&A semantic cache (ChromaDB verified_answers collection, two-tier confidence matching at 0.95/0.88, cache hit skips Claude API, medium-confidence disclaimer); profile routes (GET/DELETE for privacy compliance); admin verified answers CRUD + feedback candidates endpoint; frontend Verified Answers admin tab | `memory/profile_store.py`, `memory/fact_extractor.py`, `memory/semantic_cache.py`, `api/routes_profile.py`, `api/routes_admin.py`, `chat/orchestrator.py`, `config.py`, `main.py`, `adminApi.js`, `AdminDashboard.jsx` |
 
 > Add a row after completing each feature.
 

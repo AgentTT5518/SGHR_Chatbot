@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Orchestrator settings (Phase 2)
     use_orchestrator: bool = True
     max_tool_iterations: int = 5
+    # Profile memory settings (Phase 3)
+    profile_retention_years: int = 2
+    # Semantic cache settings (Phase 3)
+    cache_high_threshold: float = 0.95
+    cache_medium_threshold: float = 0.88
 
     class Config:
         env_file = BASE_DIR.parent / ".env"

@@ -14,7 +14,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend.api.routes_chat import router as chat_router
 from backend.api.routes_admin import router as admin_router
 from backend.api.routes_feedback import router as feedback_router
+from backend.api.routes_profile import router as profile_router
 from backend.chat import session_manager
+from backend.memory import profile_store
 from backend.lib.limiter import limiter
 from backend.lib.logger import get_logger
 from backend.retrieval import vector_store
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
     # Startup
     log.info("Initialising SQLite schema...")
     await session_manager.init_db()
+    await profile_store.init_profile_db()
 
     log.info("Pre-loading embedding model...")
     from backend.ingestion.embedder import get_model
@@ -58,6 +61,13 @@ async def lifespan(app: FastAPI):
 
     # Start background session cleanup task
     cleanup_task = asyncio.create_task(session_manager.cleanup_loop())
+    # Run profile stale cleanup once at startup
+    try:
+        deleted = await profile_store.cleanup_stale_profiles()
+        if deleted:
+            log.info("Cleaned stale profiles at startup", extra={"deleted": deleted})
+    except Exception:
+        log.error("Profile cleanup at startup failed", exc_info=True)
     log.info("Ready.")
 
     yield
@@ -88,6 +98,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(admin_router)
 app.include_router(feedback_router)
+app.include_router(profile_router)
 
 
 @app.get("/health")

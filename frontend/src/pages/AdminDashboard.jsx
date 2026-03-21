@@ -7,9 +7,13 @@ import {
   fetchFeedback,
   fetchFeedbackStats,
   fetchMetrics,
+  fetchVerifiedAnswers,
+  addVerifiedAnswer,
+  deleteVerifiedAnswer,
+  fetchCacheCandidates,
 } from "../api/adminApi";
 
-const TABS = ["Health", "Ingestion", "Feedback", "Metrics"];
+const TABS = ["Health", "Ingestion", "Feedback", "Verified Answers", "Metrics"];
 
 export function AdminDashboard({ onClose }) {
   const [activeTab, setActiveTab] = useState("Health");
@@ -39,6 +43,7 @@ export function AdminDashboard({ onClose }) {
         {activeTab === "Health" && <HealthTab />}
         {activeTab === "Ingestion" && <IngestionTab />}
         {activeTab === "Feedback" && <FeedbackTab />}
+        {activeTab === "Verified Answers" && <VerifiedAnswersTab />}
         {activeTab === "Metrics" && <MetricsTab />}
       </main>
     </div>
@@ -306,6 +311,138 @@ function MetricsTab() {
             </tbody>
           </table>
         </>
+      )}
+    </div>
+  );
+}
+
+/* ── Verified Answers Tab ────────────────────────────────────────────────────*/
+
+function VerifiedAnswersTab() {
+  const [answers, setAnswers] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([fetchVerifiedAnswers(), fetchCacheCandidates()]).then(
+      ([a, c]) => {
+        setAnswers(a?.answers ?? []);
+        setCandidates(c?.candidates ?? []);
+        setLoading(false);
+      }
+    );
+  }, []);
+
+  useEffect(() => { load(); }, [load]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  async function handleApprove(candidate) {
+    setActionLoading(`approve-${candidate.feedback_id}`);
+    await addVerifiedAnswer(candidate.question, candidate.answer, []);
+    setActionLoading(null);
+    load();
+  }
+
+  async function handleDelete(id) {
+    setActionLoading(`delete-${id}`);
+    await deleteVerifiedAnswer(id);
+    setActionLoading(null);
+    load();
+  }
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="admin-section">
+      <div className="admin-section-header">
+        <h2 className="admin-section-title">Cached Verified Answers</h2>
+        <button className="admin-btn-secondary" onClick={load}>
+          Refresh
+        </button>
+      </div>
+
+      {answers.length === 0 ? (
+        <p className="admin-empty">No verified answers in cache yet.</p>
+      ) : (
+        <table className="admin-table admin-table-full">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answers.map((a) => (
+              <tr key={a.id}>
+                <td>{a.question}</td>
+                <td className="admin-answer-preview">
+                  {a.answer.length > 120
+                    ? a.answer.slice(0, 120) + "..."
+                    : a.answer}
+                </td>
+                <td>
+                  <button
+                    className="admin-btn-danger"
+                    onClick={() => handleDelete(a.id)}
+                    disabled={actionLoading === `delete-${a.id}`}
+                  >
+                    {actionLoading === `delete-${a.id}`
+                      ? "Removing..."
+                      : "Remove"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2 className="admin-section-title" style={{ marginTop: 24 }}>
+        Candidates (Thumbs-Up Answers)
+      </h2>
+      {candidates.length === 0 ? (
+        <p className="admin-empty">
+          No thumbs-up answers available for caching.
+        </p>
+      ) : (
+        <table className="admin-table admin-table-full">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {candidates.map((c) => (
+              <tr key={c.feedback_id}>
+                <td>{c.question}</td>
+                <td className="admin-answer-preview">
+                  {c.answer.length > 120
+                    ? c.answer.slice(0, 120) + "..."
+                    : c.answer}
+                </td>
+                <td>{new Date(c.created_at).toLocaleDateString()}</td>
+                <td>
+                  <button
+                    className="admin-btn-primary"
+                    onClick={() => handleApprove(c)}
+                    disabled={
+                      actionLoading === `approve-${c.feedback_id}`
+                    }
+                  >
+                    {actionLoading === `approve-${c.feedback_id}`
+                      ? "Approving..."
+                      : "Approve"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
