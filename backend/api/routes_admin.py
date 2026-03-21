@@ -3,14 +3,21 @@ Admin routes for triggering re-ingestion and health checks.
 POST /admin/ingest — run the ingestion pipeline
 GET  /admin/health/sources — check MOM URL health
 GET  /admin/collections — document counts from ChromaDB
+GET  /admin/verified-answers — list verified answers cache
+POST /admin/verified-answers — add verified answer to cache
+DELETE /admin/verified-answers/{id} — remove verified answer
+GET  /admin/feedback/candidates — thumbs-up answers not yet cached
 """
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 
 from backend.config import RAW_SCRAPED_DIR, settings
 from backend.ingestion.scraper_mom import SEED_URLS, HEADERS
 from backend.lib.limiter import limiter
+from backend.lib.logger import get_logger
+
+log = get_logger("api.routes_admin")
 
 router = APIRouter(prefix="/admin")
 
@@ -98,3 +105,97 @@ async def list_escalations(
     """List escalation records, optionally filtered by status."""
     from backend.chat.session_manager import get_escalations
     return await get_escalations(status=status, limit=limit, offset=offset)
+
+
+# ── Verified Answers Cache ──────────────────────────────────────────────────
+
+
+class VerifiedAnswerRequest(BaseModel):
+    question: str
+    answer: str
+    sources: list[dict] = []
+
+
+@router.get("/verified-answers")
+@limiter.limit(settings.admin_rate_limit)
+async def list_verified_answers(request: Request):
+    """List all cached verified answers."""
+    from backend.memory.semantic_cache import list_verified_answers as _list
+    try:
+        return {"answers": _list()}
+    except Exception as exc:
+        log.error("Failed to list verified answers", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list verified answers") from exc
+
+
+@router.post("/verified-answers", status_code=201)
+@limiter.limit(settings.admin_rate_limit)
+async def create_verified_answer(request: Request, req: VerifiedAnswerRequest):
+    """Admin approves an answer into the semantic cache."""
+    from backend.memory.semantic_cache import add_verified_answer
+    try:
+        doc_id = add_verified_answer(
+            question=req.question,
+            answer=req.answer,
+            sources=req.sources,
+        )
+        return {"success": True, "id": doc_id}
+    except Exception as exc:
+        log.error("Failed to add verified answer", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to add verified answer") from exc
+
+
+@router.delete("/verified-answers/{answer_id}")
+@limiter.limit(settings.admin_rate_limit)
+async def delete_verified_answer(request: Request, answer_id: str):
+    """Remove a verified answer from the cache."""
+    from backend.memory.semantic_cache import remove_verified_answer
+    try:
+        remove_verified_answer(answer_id)
+        return {"success": True, "message": "Verified answer removed"}
+    except Exception as exc:
+        log.error("Failed to remove verified answer", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to remove verified answer") from exc
+
+
+@router.get("/feedback/candidates")
+@limiter.limit(settings.admin_rate_limit)
+async def feedback_candidates(request: Request):
+    """Return thumbs-up feedback entries with their messages for cache review.
+
+    Joins feedback (rating='up') with the corresponding assistant message
+    so admins can approve answers into the verified cache.
+    """
+    from backend.chat.session_manager import get_feedback, get_full_history
+    try:
+        feedback_records = await get_feedback(limit=100, offset=0)
+        candidates = []
+        for rec in feedback_records:
+            if rec["rating"] != "up":
+                continue
+            # Fetch the session history to get the actual Q&A
+            history = await get_full_history(rec["session_id"])
+            msg_idx = rec["message_index"]
+            # message_index is 0-based index in the conversation
+            # Find assistant message at that index and the preceding user message
+            if msg_idx < 0 or msg_idx >= len(history):
+                continue
+            assistant_msg = history[msg_idx]
+            if assistant_msg["role"] != "assistant":
+                continue
+            # Find preceding user message
+            user_msg = ""
+            if msg_idx > 0 and history[msg_idx - 1]["role"] == "user":
+                user_msg = history[msg_idx - 1]["content"]
+
+            candidates.append({
+                "feedback_id": rec["id"],
+                "session_id": rec["session_id"],
+                "question": user_msg,
+                "answer": assistant_msg["content"],
+                "created_at": rec["created_at"],
+            })
+        return {"candidates": candidates}
+    except Exception as exc:
+        log.error("Failed to fetch feedback candidates", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch candidates") from exc

@@ -80,3 +80,53 @@ export async function fetchMetrics() {
     return null;
   }
 }
+
+/** GET /admin/verified-answers */
+export async function fetchVerifiedAnswers() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/verified-answers`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** POST /admin/verified-answers */
+export async function addVerifiedAnswer(question, answer, sources = []) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/verified-answers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, answer, sources }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+/** DELETE /admin/verified-answers/:id */
+export async function deleteVerifiedAnswer(id) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/verified-answers/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+/** GET /admin/feedback/candidates */
+export async function fetchCacheCandidates() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/feedback/candidates`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch {
+    return null;
+  }
+}

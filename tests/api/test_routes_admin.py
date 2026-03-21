@@ -106,3 +106,62 @@ def test_collections_returns_error_on_exception(client):
     assert resp.status_code == 200
     assert "error" in resp.json()
     assert "chroma down" in resp.json()["error"]
+
+
+# ── GET /admin/verified-answers ──────────────────────────────────────────────
+
+
+def test_list_verified_answers(client):
+    mock_answers = [{"id": "id-1", "question": "Q1", "answer": "A1", "sources": []}]
+    with patch("backend.memory.semantic_cache.list_verified_answers", return_value=mock_answers):
+        resp = client.get("/admin/verified-answers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["answers"]) == 1
+    assert data["answers"][0]["question"] == "Q1"
+
+
+# ── POST /admin/verified-answers ─────────────────────────────────────────────
+
+
+def test_create_verified_answer(client):
+    with patch("backend.memory.semantic_cache.add_verified_answer", return_value="new-id"):
+        resp = client.post("/admin/verified-answers", json={
+            "question": "What is CPF?",
+            "answer": "CPF is the Central Provident Fund.",
+            "sources": [],
+        })
+    assert resp.status_code == 201
+    assert resp.json()["id"] == "new-id"
+
+
+# ── DELETE /admin/verified-answers/{id} ──────────────────────────────────────
+
+
+def test_delete_verified_answer(client):
+    with patch("backend.memory.semantic_cache.remove_verified_answer") as mock_rm:
+        resp = client.delete("/admin/verified-answers/some-id")
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    mock_rm.assert_called_once_with("some-id")
+
+
+# ── GET /admin/feedback/candidates ───────────────────────────────────────────
+
+
+def test_feedback_candidates(client):
+    mock_feedback = [
+        {"id": 1, "session_id": "sess-1", "message_index": 1, "rating": "up", "comment": None, "created_at": "2024-01-01"},
+    ]
+    mock_history = [
+        {"role": "user", "content": "What is leave?", "created_at": "2024-01-01"},
+        {"role": "assistant", "content": "Leave is 14 days.", "created_at": "2024-01-01"},
+    ]
+    with patch("backend.chat.session_manager.get_feedback", new_callable=AsyncMock, return_value=mock_feedback), \
+         patch("backend.chat.session_manager.get_full_history", new_callable=AsyncMock, return_value=mock_history):
+        resp = client.get("/admin/feedback/candidates")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["candidates"]) == 1
+    assert data["candidates"][0]["question"] == "What is leave?"
+    assert data["candidates"][0]["answer"] == "Leave is 14 days."

@@ -21,6 +21,7 @@ from backend.chat.token_budget import TokenBudget, count_tokens
 from backend.chat.tools.registry import dispatch_tool, get_all_schemas, register_all_tools
 from backend.config import settings
 from backend.lib.logger import get_logger
+from backend.memory import fact_extractor, profile_store, semantic_cache
 
 log = get_logger("chat.orchestrator")
 
@@ -107,6 +108,21 @@ def _extract_sources_from_tool_results(messages: list[dict]) -> list[dict]:
     return sources
 
 
+async def _update_profile_from_conversation(
+    user_id: str,
+    session_id: str,
+    client: anthropic.AsyncAnthropic,
+) -> None:
+    """Extract profile facts from conversation and upsert. Non-blocking, best-effort."""
+    try:
+        messages = await session_manager.get_history(session_id, last_n_pairs=5)
+        facts = await fact_extractor.extract_profile_facts(messages, client)
+        if facts:
+            await profile_store.upsert_profile(user_id, facts)
+    except Exception:
+        log.error("Failed to update profile from conversation", exc_info=True)
+
+
 async def orchestrate(
     session_id: str,
     user_id: str,
@@ -123,6 +139,48 @@ async def orchestrate(
     await session_manager.get_or_create(session_id, user_id=user_id)
     system_prompt = build_system_prompt(context=None, user_role=user_role)
     client = get_client()
+
+    # 1a. Check semantic cache before calling Claude
+    try:
+        cache_result = semantic_cache.check_cache(user_message)
+    except Exception:
+        log.error("Semantic cache check failed, continuing without cache", exc_info=True)
+        cache_result = None
+
+    if cache_result is not None:
+        log.info(
+            "Serving cached answer",
+            extra={"confidence": cache_result.confidence, "session_id": session_id},
+        )
+        # Stream cached answer to client
+        answer = cache_result.answer
+        if cache_result.disclaimer:
+            answer = f"*{cache_result.disclaimer}*\n\n{answer}"
+        yield _sse({"token": answer, "done": True, "sources": cache_result.sources})
+        # Persist turn
+        await session_manager.add_message(session_id, "user", user_message)
+        await session_manager.add_message(session_id, "assistant", cache_result.answer)
+        return
+
+    # 1b. Load user profile and inject into system prompt
+    try:
+        profile = await profile_store.get_profile(user_id)
+    except Exception:
+        log.error("Failed to load user profile, continuing without", exc_info=True)
+        profile = None
+
+    if profile:
+        profile_parts = []
+        if profile.get("employment_type"):
+            profile_parts.append(f"employment type: {profile['employment_type']}")
+        if profile.get("salary_bracket"):
+            profile_parts.append(f"salary bracket: {profile['salary_bracket']}")
+        if profile.get("tenure_years") is not None:
+            profile_parts.append(f"tenure: {profile['tenure_years']} years")
+        if profile.get("company"):
+            profile_parts.append(f"company: {profile['company']}")
+        if profile_parts:
+            system_prompt += f"\n\nKnown user context: {', '.join(profile_parts)}"
 
     # Ensure tools are registered
     register_all_tools()
@@ -229,6 +287,11 @@ async def orchestrate(
 
             # Trigger async summary update (non-blocking)
             asyncio.create_task(context_manager.maybe_update_summary(session_id, client))
+
+            # Trigger async profile update (non-blocking)
+            asyncio.create_task(
+                _update_profile_from_conversation(user_id, session_id, client)
+            )
             return
 
     # Max iterations reached — fallback
