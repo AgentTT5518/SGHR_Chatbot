@@ -165,3 +165,39 @@ def test_feedback_candidates(client):
     assert len(data["candidates"]) == 1
     assert data["candidates"][0]["question"] == "What is leave?"
     assert data["candidates"][0]["answer"] == "Leave is 14 days."
+
+
+# ── GET /admin/faq-patterns ─────────────────────────────────────────────────
+
+
+def test_faq_patterns_returns_structure(client):
+    mock_patterns = [{"cluster_id": 0, "count": 5, "representative_query": "Q1", "sample_queries": ["Q1"]}]
+    mock_gaps = [{"cluster_id": 0, "count": 2, "representative_query": "G1", "sample_queries": ["G1"], "gap_type": "thumbs_down"}]
+
+    with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, return_value=mock_patterns), \
+         patch("backend.memory.faq_analyzer.identify_gaps", new_callable=AsyncMock, return_value=mock_gaps):
+        resp = client.get("/admin/faq-patterns?days=14")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "top_patterns" in data
+    assert "knowledge_gaps" in data
+    assert len(data["top_patterns"]) == 1
+    assert data["top_patterns"][0]["count"] == 5
+    assert data["knowledge_gaps"][0]["gap_type"] == "thumbs_down"
+
+
+def test_faq_patterns_default_days(client):
+    with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, return_value=[]) as mock_analyze, \
+         patch("backend.memory.faq_analyzer.identify_gaps", new_callable=AsyncMock, return_value=[]):
+        resp = client.get("/admin/faq-patterns")
+
+    assert resp.status_code == 200
+    mock_analyze.assert_called_once_with(days=30)
+
+
+def test_faq_patterns_handles_error(client):
+    with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, side_effect=Exception("boom")):
+        resp = client.get("/admin/faq-patterns")
+
+    assert resp.status_code == 500

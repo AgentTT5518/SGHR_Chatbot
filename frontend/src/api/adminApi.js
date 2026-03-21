@@ -120,6 +120,17 @@ export async function deleteVerifiedAnswer(id) {
   }
 }
 
+/** GET /admin/faq-patterns?days=N */
+export async function fetchFaqPatterns(days = 30) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/faq-patterns?days=${days}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** GET /admin/feedback/candidates */
 export async function fetchCacheCandidates() {
   try {
