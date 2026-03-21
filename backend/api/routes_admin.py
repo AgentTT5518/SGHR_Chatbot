@@ -7,6 +7,7 @@ GET  /admin/verified-answers — list verified answers cache
 POST /admin/verified-answers — add verified answer to cache
 DELETE /admin/verified-answers/{id} — remove verified answer
 GET  /admin/feedback/candidates — thumbs-up answers not yet cached
+GET  /admin/faq-patterns — FAQ query clusters and knowledge gaps
 """
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -156,6 +157,23 @@ async def delete_verified_answer(request: Request, answer_id: str):
     except Exception as exc:
         log.error("Failed to remove verified answer", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to remove verified answer") from exc
+
+
+# ── FAQ Patterns ───────────────────────────────────────────────────────────
+
+
+@router.get("/faq-patterns")
+@limiter.limit(settings.admin_rate_limit)
+async def get_faq_patterns(request: Request, days: int = 30):
+    """Return top query clusters and knowledge gaps for admin review."""
+    from backend.memory.faq_analyzer import analyze_query_patterns, identify_gaps
+    try:
+        top_patterns = await analyze_query_patterns(days=days)
+        knowledge_gaps = await identify_gaps(days=days)
+        return {"top_patterns": top_patterns, "knowledge_gaps": knowledge_gaps}
+    except Exception as exc:
+        log.error("FAQ pattern analysis failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="FAQ pattern analysis failed") from exc
 
 
 @router.get("/feedback/candidates")

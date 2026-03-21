@@ -11,9 +11,10 @@ import {
   addVerifiedAnswer,
   deleteVerifiedAnswer,
   fetchCacheCandidates,
+  fetchFaqPatterns,
 } from "../api/adminApi";
 
-const TABS = ["Health", "Ingestion", "Feedback", "Verified Answers", "Metrics"];
+const TABS = ["Health", "Ingestion", "Feedback", "Verified Answers", "FAQ Patterns", "Metrics"];
 
 export function AdminDashboard({ onClose }) {
   const [activeTab, setActiveTab] = useState("Health");
@@ -44,6 +45,7 @@ export function AdminDashboard({ onClose }) {
         {activeTab === "Ingestion" && <IngestionTab />}
         {activeTab === "Feedback" && <FeedbackTab />}
         {activeTab === "Verified Answers" && <VerifiedAnswersTab />}
+        {activeTab === "FAQ Patterns" && <FaqPatternsTab />}
         {activeTab === "Metrics" && <MetricsTab />}
       </main>
     </div>
@@ -438,6 +440,143 @@ function VerifiedAnswersTab() {
                       ? "Approving..."
                       : "Approve"}
                   </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/* ── FAQ Patterns Tab ───────────────────────────────────────────────────────*/
+
+const DAYS_OPTIONS = [7, 14, 30, 60];
+
+function FaqPatternsTab() {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+
+  const load = useCallback((d) => {
+    setLoading(true);
+    fetchFaqPatterns(d).then((result) => {
+      setData(result);
+      setExpanded({});
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => { load(days); }, [load, days]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  function toggleExpand(key) {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  if (loading) return <Spinner />;
+  if (!data) return <p className="admin-error">Could not load FAQ patterns.</p>;
+
+  return (
+    <div className="admin-section">
+      <div className="admin-section-header">
+        <h2 className="admin-section-title">FAQ Patterns</h2>
+        <div className="admin-btn-row">
+          <select
+            className="admin-select"
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+          >
+            {DAYS_OPTIONS.map((d) => (
+              <option key={d} value={d}>Last {d} days</option>
+            ))}
+          </select>
+          <button className="admin-btn-secondary" onClick={() => load(days)}>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <h3 className="admin-section-title" style={{ marginTop: 16 }}>
+        Top Question Clusters
+      </h3>
+      {data.top_patterns.length === 0 ? (
+        <p className="admin-empty">No query patterns found in this period.</p>
+      ) : (
+        <table className="admin-table admin-table-full">
+          <thead>
+            <tr>
+              <th>Representative Query</th>
+              <th>Count</th>
+              <th>Samples</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.top_patterns.map((c) => (
+              <tr key={`pattern-${c.cluster_id}`}>
+                <td>{c.representative_query}</td>
+                <td>{c.count}</td>
+                <td>
+                  <button
+                    className="admin-btn-link"
+                    onClick={() => toggleExpand(`p-${c.cluster_id}`)}
+                  >
+                    {expanded[`p-${c.cluster_id}`] ? "Hide" : `Show (${c.sample_queries.length})`}
+                  </button>
+                  {expanded[`p-${c.cluster_id}`] && (
+                    <ul className="admin-sample-list">
+                      {c.sample_queries.map((q, i) => (
+                        <li key={i}>{q}</li>
+                      ))}
+                    </ul>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h3 className="admin-section-title" style={{ marginTop: 24 }}>
+        Knowledge Gaps
+      </h3>
+      {data.knowledge_gaps.length === 0 ? (
+        <p className="admin-empty">No knowledge gaps detected in this period.</p>
+      ) : (
+        <table className="admin-table admin-table-full">
+          <thead>
+            <tr>
+              <th>Gap Type</th>
+              <th>Representative Query</th>
+              <th>Count</th>
+              <th>Samples</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.knowledge_gaps.map((g) => (
+              <tr key={`gap-${g.cluster_id}`}>
+                <td>
+                  <Badge ok={false}>
+                    {g.gap_type === "thumbs_down" ? "Thumbs Down" : "Escalation"}
+                  </Badge>
+                </td>
+                <td>{g.representative_query}</td>
+                <td>{g.count}</td>
+                <td>
+                  <button
+                    className="admin-btn-link"
+                    onClick={() => toggleExpand(`g-${g.cluster_id}`)}
+                  >
+                    {expanded[`g-${g.cluster_id}`] ? "Hide" : `Show (${g.sample_queries.length})`}
+                  </button>
+                  {expanded[`g-${g.cluster_id}`] && (
+                    <ul className="admin-sample-list">
+                      {g.sample_queries.map((q, i) => (
+                        <li key={i}>{q}</li>
+                      ))}
+                    </ul>
+                  )}
                 </td>
               </tr>
             ))}
