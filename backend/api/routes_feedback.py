@@ -6,10 +6,13 @@ GET  /admin/feedback/stats — aggregate up/down counts
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 from backend.chat import session_manager
+from backend.config import settings
+from backend.lib.admin_auth import require_admin
+from backend.lib.limiter import limiter
 from backend.lib.logger import get_logger
 
 log = get_logger("api.routes_feedback")
@@ -32,8 +35,27 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/api/feedback", status_code=201)
-async def submit_feedback(req: FeedbackRequest):
-    """Record a thumbs-up or thumbs-down on an assistant message."""
+@limiter.limit(settings.feedback_rate_limit)
+async def submit_feedback(request: Request, req: FeedbackRequest):
+    """Record a thumbs-up or thumbs-down on an assistant message.
+
+    Validates that the session exists to prevent feedback for non-existent
+    sessions.  Accepts a signed session token via ``X-Session-Token`` header
+    or the raw session ID in the body (grace period).
+    """
+    from backend.lib.session_signer import verify_session_id
+
+    # Verify the session token if provided in header
+    token = request.headers.get("X-Session-Token", "")
+    if token:
+        verified = verify_session_id(token)
+        if verified is None:
+            raise HTTPException(status_code=403, detail="Invalid session token")
+
+    # Verify the session exists in the database
+    if not await session_manager.session_exists(req.session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+
     try:
         row_id = await session_manager.add_feedback(
             session_id=req.session_id,
@@ -51,7 +73,7 @@ async def submit_feedback(req: FeedbackRequest):
         raise HTTPException(status_code=500, detail="Failed to record feedback") from exc
 
 
-@router.get("/admin/feedback")
+@router.get("/admin/feedback", dependencies=[Depends(require_admin)])
 async def list_feedback(limit: int = 50, offset: int = 0):
     """Paginated list of feedback records, newest first."""
     if limit < 1 or limit > 200:
@@ -64,7 +86,7 @@ async def list_feedback(limit: int = 50, offset: int = 0):
         raise HTTPException(status_code=500, detail="Failed to fetch feedback") from exc
 
 
-@router.get("/admin/feedback/stats")
+@router.get("/admin/feedback/stats", dependencies=[Depends(require_admin)])
 async def feedback_stats():
     """Aggregate up/down counts."""
     try:

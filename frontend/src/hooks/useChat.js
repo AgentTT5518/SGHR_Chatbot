@@ -1,7 +1,7 @@
 import { useReducer, useEffect, useRef } from "react";
 import { sendMessage, fetchHistory, submitFeedback as apiFeedback } from "../api/chatApi";
 
-const SESSION_KEY = "hr_chat_session_id";
+const SESSION_KEY = "hr_chat_session_id"; // stores the *signed* token from server
 const MESSAGES_KEY = "hr_chat_messages";
 const USER_KEY = "hr_chat_user_id";
 
@@ -9,13 +9,9 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-function getOrCreateSessionId() {
-  let id = sessionStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id = generateId();
-    sessionStorage.setItem(SESSION_KEY, id);
-  }
-  return id;
+function getStoredSessionId() {
+  // Returns the signed session token or null (server assigns on first message)
+  return sessionStorage.getItem(SESSION_KEY) || null;
 }
 
 function getOrCreateUserId() {
@@ -28,7 +24,7 @@ function getOrCreateUserId() {
 }
 
 const initialState = {
-  sessionId: getOrCreateSessionId(),
+  sessionId: getStoredSessionId(),
   userId: getOrCreateUserId(),
   messages: [],
   isLoading: true, // starts true while hydrating
@@ -101,11 +97,16 @@ function reducer(state, action) {
     case "SET_ERROR":
       return { ...state, error: action.error, isLoading: false };
 
+    case "SET_SESSION_TOKEN": {
+      sessionStorage.setItem(SESSION_KEY, action.token);
+      return { ...state, sessionId: action.token };
+    }
+
     case "RESET_SESSION": {
-      const newId = generateId();
-      sessionStorage.setItem(SESSION_KEY, newId);
+      // Clear signed token — server will assign a new one on next message
+      sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(MESSAGES_KEY);
-      return { ...state, sessionId: newId, messages: [], error: null };
+      return { ...state, sessionId: null, messages: [], error: null };
     }
 
     default:
@@ -163,6 +164,7 @@ export function useChat(userRole) {
       userRole: userRoleRef.current,
       onToken: (token) => dispatch({ type: "STREAM_TOKEN", id: assistantId, token }),
       onStatus: (detail) => dispatch({ type: "STREAM_STATUS", id: assistantId, detail }),
+      onSessionToken: (token) => dispatch({ type: "SET_SESSION_TOKEN", token }),
       onError: (err) => {
         dispatch({ type: "STREAM_TOKEN", id: assistantId, token: `\n\n*Error: ${err}*` });
         dispatch({ type: "STREAM_COMPLETE", id: assistantId, sources: [] });

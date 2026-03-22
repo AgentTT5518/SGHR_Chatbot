@@ -1,0 +1,337 @@
+[
+  {
+    "query": "How many days of annual leave am I entitled to?",
+    "category": "annual_leave",
+    "expected_keywords": ["annual leave", "7 days", "14 days", "service"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "What is the minimum annual leave for new employees?",
+    "category": "annual_leave",
+    "expected_keywords": ["7 days", "first year", "annual leave"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Can I carry forward unused annual leave?",
+    "category": "annual_leave",
+    "expected_keywords": ["annual leave", "carry forward", "forfeited"],
+    "expected_sections": []
+  },
+  {
+    "query": "How many days of paid sick leave can I take?",
+    "category": "sick_leave",
+    "expected_keywords": ["14 days", "60 days", "hospitalisation", "sick leave"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Do I need a medical certificate for sick leave?",
+    "category": "sick_leave",
+    "expected_keywords": ["medical certificate", "MC", "doctor", "sick leave"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the notice period for termination?",
+    "category": "notice_period",
+    "expected_keywords": ["notice", "termination", "one day", "one week", "one month"],
+    "expected_sections": ["Section 10"]
+  },
+  {
+    "query": "Can my employer terminate me without notice?",
+    "category": "notice_period",
+    "expected_keywords": ["notice", "termination", "salary in lieu", "misconduct"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the default notice period if my contract doesn't specify?",
+    "category": "notice_period",
+    "expected_keywords": ["notice period", "less than 26 weeks", "26 weeks", "2 years", "5 years"],
+    "expected_sections": ["Section 10"]
+  },
+  {
+    "query": "What is the definition of basic rate of pay?",
+    "category": "definitions",
+    "expected_keywords": ["basic rate of pay", "Section 2", "definition"],
+    "expected_sections": ["Section 2"]
+  },
+  {
+    "query": "Who is considered a workman under the Employment Act?",
+    "category": "definitions",
+    "expected_keywords": ["workman", "manual labour", "definition"],
+    "expected_sections": ["Section 2"]
+  },
+  {
+    "query": "What is a contract of service?",
+    "category": "definitions",
+    "expected_keywords": ["contract of service", "agreement", "employer", "employee"],
+    "expected_sections": ["Section 2"]
+  },
+  {
+    "query": "Am I covered by Part IV of the Employment Act?",
+    "category": "eligibility",
+    "expected_keywords": ["Part IV", "salary", "$4,500", "workman", "manager"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Does the Employment Act cover foreign workers?",
+    "category": "eligibility",
+    "expected_keywords": ["foreign", "worker", "Employment Act", "apply"],
+    "expected_sections": []
+  },
+  {
+    "query": "What are the salary thresholds for Employment Act coverage?",
+    "category": "eligibility",
+    "expected_keywords": ["salary", "$4,500", "Part IV", "threshold"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "How much maternity leave am I entitled to?",
+    "category": "maternity_leave",
+    "expected_keywords": ["maternity", "16 weeks", "government-paid", "employer-paid"],
+    "expected_sections": ["Part IX"]
+  },
+  {
+    "query": "What are the eligibility requirements for maternity leave?",
+    "category": "maternity_leave",
+    "expected_keywords": ["maternity", "3 months", "employed", "child"],
+    "expected_sections": ["Part IX"]
+  },
+  {
+    "query": "How many days of paternity leave can fathers take?",
+    "category": "paternity_leave",
+    "expected_keywords": ["paternity", "father", "2 weeks", "government-paid"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is childcare leave entitlement?",
+    "category": "childcare_leave",
+    "expected_keywords": ["childcare", "6 days", "child", "under 7"],
+    "expected_sections": []
+  },
+  {
+    "query": "How is overtime pay calculated in Singapore?",
+    "category": "overtime",
+    "expected_keywords": ["overtime", "1.5 times", "hourly rate", "Part IV"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "What is the maximum number of overtime hours allowed?",
+    "category": "overtime",
+    "expected_keywords": ["72 hours", "overtime", "month", "limit"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Am I entitled to overtime if I earn more than $2,600?",
+    "category": "overtime",
+    "expected_keywords": ["overtime", "salary", "$2,600", "Part IV"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "What are the gazetted public holidays in Singapore?",
+    "category": "public_holidays",
+    "expected_keywords": ["public holiday", "11 gazetted", "paid holiday"],
+    "expected_sections": []
+  },
+  {
+    "query": "What happens if a public holiday falls on a rest day?",
+    "category": "public_holidays",
+    "expected_keywords": ["public holiday", "rest day", "extra day", "replacement"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the probation period under Singapore law?",
+    "category": "probation",
+    "expected_keywords": ["probation", "contract", "notice"],
+    "expected_sections": []
+  },
+  {
+    "query": "Can I be dismissed during probation?",
+    "category": "probation",
+    "expected_keywords": ["probation", "dismiss", "notice", "termination"],
+    "expected_sections": []
+  },
+  {
+    "query": "What are my rights if I am retrenched?",
+    "category": "retrenchment",
+    "expected_keywords": ["retrenchment", "benefit", "notice", "service"],
+    "expected_sections": []
+  },
+  {
+    "query": "How is retrenchment benefit calculated?",
+    "category": "retrenchment",
+    "expected_keywords": ["retrenchment", "benefit", "years of service", "salary"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the retirement age in Singapore?",
+    "category": "retirement",
+    "expected_keywords": ["retirement", "63", "re-employment", "68"],
+    "expected_sections": []
+  },
+  {
+    "query": "Can my employer force me to retire at 62?",
+    "category": "retirement",
+    "expected_keywords": ["retirement", "re-employment", "age"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is a rest day under the Employment Act?",
+    "category": "rest_day",
+    "expected_keywords": ["rest day", "one day", "week", "continuous"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Can my employer ask me to work on a rest day?",
+    "category": "rest_day",
+    "expected_keywords": ["rest day", "work", "extra pay", "overtime"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "What are the rules about salary deductions?",
+    "category": "salary",
+    "expected_keywords": ["deduction", "salary", "limit", "absence"],
+    "expected_sections": []
+  },
+  {
+    "query": "When must my employer pay my salary?",
+    "category": "salary",
+    "expected_keywords": ["salary", "payment", "7 days", "month"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the MOM mediation process for salary disputes?",
+    "category": "disputes",
+    "expected_keywords": ["mediation", "MOM", "dispute", "claim"],
+    "expected_sections": []
+  },
+  {
+    "query": "How do I file a claim with the Employment Claims Tribunal?",
+    "category": "disputes",
+    "expected_keywords": ["Employment Claims Tribunal", "ECT", "claim", "file"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the Key Employment Terms document?",
+    "category": "ket",
+    "expected_keywords": ["Key Employment Terms", "KET", "written", "employer"],
+    "expected_sections": []
+  },
+  {
+    "query": "Does my employer have to give me an employment contract?",
+    "category": "ket",
+    "expected_keywords": ["contract", "KET", "employer", "written"],
+    "expected_sections": []
+  },
+  {
+    "query": "What are the rules for part-time employees?",
+    "category": "part_time",
+    "expected_keywords": ["part-time", "35 hours", "pro-rated"],
+    "expected_sections": []
+  },
+  {
+    "query": "How is leave calculated for part-time workers?",
+    "category": "part_time",
+    "expected_keywords": ["part-time", "pro-rated", "leave", "formula"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is wrongful dismissal?",
+    "category": "dismissal",
+    "expected_keywords": ["wrongful dismissal", "without just cause", "reinstate"],
+    "expected_sections": []
+  },
+  {
+    "query": "Can I lodge a wrongful dismissal claim?",
+    "category": "dismissal",
+    "expected_keywords": ["wrongful dismissal", "claim", "MOM", "Tribunal"],
+    "expected_sections": []
+  },
+  {
+    "query": "What are the rules about working hours in Singapore?",
+    "category": "working_hours",
+    "expected_keywords": ["working hours", "8 hours", "44 hours", "week"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "What is shift work under the Employment Act?",
+    "category": "working_hours",
+    "expected_keywords": ["shift", "work", "continuous", "12 hours"],
+    "expected_sections": ["Part IV"]
+  },
+  {
+    "query": "Are domestic workers covered by the Employment Act?",
+    "category": "eligibility",
+    "expected_keywords": ["domestic worker", "not covered", "excluded"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is a PME under employment law?",
+    "category": "eligibility",
+    "expected_keywords": ["PME", "professional", "manager", "executive", "Part IV"],
+    "expected_sections": []
+  },
+  {
+    "query": "How do I calculate my daily rate of pay?",
+    "category": "salary",
+    "expected_keywords": ["daily rate", "monthly", "26", "formula"],
+    "expected_sections": []
+  },
+  {
+    "query": "What is the CPF contribution rate?",
+    "category": "cpf",
+    "expected_keywords": ["CPF", "contribution", "rate", "employer"],
+    "expected_sections": []
+  },
+  {
+    "query": "What leave am I entitled to for childcare?",
+    "category": "childcare_leave",
+    "expected_keywords": ["childcare", "leave", "6 days", "child"],
+    "expected_sections": []
+  },
+  {
+    "query": "Can my employer transfer me to a different job?",
+    "category": "transfer",
+    "expected_keywords": ["transfer", "job", "consent", "employer"],
+    "expected_sections": []
+  },
+  {
+    "query": "What happens if my employer goes bankrupt?",
+    "category": "insolvency",
+    "expected_keywords": ["salary", "claim", "insolvency", "priority"],
+    "expected_sections": []
+  },
+  {
+    "query": "What's the weather like in Singapore today?",
+    "category": "adversarial_off_topic",
+    "expected_keywords": [],
+    "expected_sections": [],
+    "expect_low_relevance": true
+  },
+  {
+    "query": "How do I file taxes in the United States?",
+    "category": "adversarial_off_topic",
+    "expected_keywords": [],
+    "expected_sections": [],
+    "expect_low_relevance": true
+  },
+  {
+    "query": "What is the best restaurant in Orchard Road?",
+    "category": "adversarial_off_topic",
+    "expected_keywords": [],
+    "expected_sections": [],
+    "expect_low_relevance": true
+  },
+  {
+    "query": "Tell me about the history of the Roman Empire",
+    "category": "adversarial_off_topic",
+    "expected_keywords": [],
+    "expected_sections": [],
+    "expect_low_relevance": true
+  },
+  {
+    "query": "How do I cook chicken rice?",
+    "category": "adversarial_off_topic",
+    "expected_keywords": [],
+    "expected_sections": [],
+    "expect_low_relevance": true
+  }
+]

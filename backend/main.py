@@ -5,7 +5,7 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -17,6 +17,7 @@ from backend.api.routes_feedback import router as feedback_router
 from backend.api.routes_profile import router as profile_router
 from backend.chat import session_manager
 from backend.memory import profile_store
+from backend.lib.admin_auth import require_admin
 from backend.lib.limiter import limiter
 from backend.lib.logger import get_logger
 from backend.retrieval import vector_store
@@ -87,13 +88,21 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 app.add_middleware(MetricsMiddleware)
+
+# CORS — origins from env (ALLOWED_ORIGINS), defaults to localhost:5173
+from backend.config import settings as _settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_origins=_settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# HTTPS redirect in production
+if _settings.enforce_https:
+    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 app.include_router(chat_router)
 app.include_router(admin_router)
@@ -119,8 +128,8 @@ async def health():
     }
 
 
-@app.get("/metrics")
-async def metrics():
+@app.get("/metrics", dependencies=[Depends(require_admin)])
+async def metrics(request: Request):
     """Return in-memory request metrics (resets on server restart)."""
     from backend.lib.metrics import get_snapshot
     from backend.chat.session_manager import get_feedback_stats
