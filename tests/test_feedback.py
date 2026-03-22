@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from tests.conftest import ADMIN_HEADERS
 
 
 @pytest.fixture
@@ -23,10 +24,8 @@ def client():
 # ── POST /api/feedback ────────────────────────────────────────────────────────
 
 def test_submit_feedback_thumbs_up(client):
-    with patch(
-        "backend.chat.session_manager.add_feedback",
-        new=AsyncMock(return_value=1),
-    ):
+    with patch("backend.chat.session_manager.session_exists", new=AsyncMock(return_value=True)), \
+         patch("backend.chat.session_manager.add_feedback", new=AsyncMock(return_value=1)):
         resp = client.post(
             "/api/feedback",
             json={"session_id": "abc123", "message_index": 2, "rating": "up"},
@@ -38,10 +37,8 @@ def test_submit_feedback_thumbs_up(client):
 
 
 def test_submit_feedback_thumbs_down_with_comment(client):
-    with patch(
-        "backend.chat.session_manager.add_feedback",
-        new=AsyncMock(return_value=5),
-    ):
+    with patch("backend.chat.session_manager.session_exists", new=AsyncMock(return_value=True)), \
+         patch("backend.chat.session_manager.add_feedback", new=AsyncMock(return_value=5)):
         resp = client.post(
             "/api/feedback",
             json={
@@ -68,11 +65,18 @@ def test_submit_feedback_missing_fields(client):
     assert resp.status_code == 422
 
 
+def test_submit_feedback_nonexistent_session(client):
+    with patch("backend.chat.session_manager.session_exists", new=AsyncMock(return_value=False)):
+        resp = client.post(
+            "/api/feedback",
+            json={"session_id": "ghost", "message_index": 0, "rating": "up"},
+        )
+    assert resp.status_code == 404
+
+
 def test_submit_feedback_db_error_returns_500(client):
-    with patch(
-        "backend.chat.session_manager.add_feedback",
-        new=AsyncMock(side_effect=Exception("DB error")),
-    ):
+    with patch("backend.chat.session_manager.session_exists", new=AsyncMock(return_value=True)), \
+         patch("backend.chat.session_manager.add_feedback", new=AsyncMock(side_effect=Exception("DB error"))):
         resp = client.post(
             "/api/feedback",
             json={"session_id": "abc123", "message_index": 0, "rating": "up"},
@@ -97,7 +101,7 @@ def test_list_feedback_returns_records(client):
         "backend.chat.session_manager.get_feedback",
         new=AsyncMock(return_value=fake_records),
     ):
-        resp = client.get("/admin/feedback")
+        resp = client.get("/admin/feedback", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["records"] == fake_records
@@ -110,7 +114,7 @@ def test_list_feedback_pagination(client):
         "backend.chat.session_manager.get_feedback",
         new=AsyncMock(return_value=[]),
     ) as mock_get:
-        resp = client.get("/admin/feedback?limit=10&offset=20")
+        resp = client.get("/admin/feedback?limit=10&offset=20", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["limit"] == 10
@@ -118,13 +122,18 @@ def test_list_feedback_pagination(client):
 
 
 def test_list_feedback_invalid_limit(client):
-    resp = client.get("/admin/feedback?limit=0")
+    resp = client.get("/admin/feedback?limit=0", headers=ADMIN_HEADERS)
     assert resp.status_code == 400
 
 
 def test_list_feedback_limit_too_large(client):
-    resp = client.get("/admin/feedback?limit=999")
+    resp = client.get("/admin/feedback?limit=999", headers=ADMIN_HEADERS)
     assert resp.status_code == 400
+
+
+def test_list_feedback_requires_admin_key(client):
+    resp = client.get("/admin/feedback")
+    assert resp.status_code == 401
 
 
 # ── GET /admin/feedback/stats ─────────────────────────────────────────────────
@@ -135,7 +144,7 @@ def test_feedback_stats(client):
         "backend.chat.session_manager.get_feedback_stats",
         new=AsyncMock(return_value=fake_stats),
     ):
-        resp = client.get("/admin/feedback/stats")
+        resp = client.get("/admin/feedback/stats", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     assert resp.json() == fake_stats
 
@@ -145,7 +154,12 @@ def test_feedback_stats_empty(client):
         "backend.chat.session_manager.get_feedback_stats",
         new=AsyncMock(return_value={"total": 0, "up": 0, "down": 0}),
     ):
-        resp = client.get("/admin/feedback/stats")
+        resp = client.get("/admin/feedback/stats", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 0
+
+
+def test_feedback_stats_requires_admin_key(client):
+    resp = client.get("/admin/feedback/stats")
+    assert resp.status_code == 401

@@ -38,8 +38,9 @@ def test_chat_rate_limit_allows_single_request(client):
 
 
 def test_admin_ingest_rate_limit_allows_single_request(client):
+    from tests.conftest import ADMIN_HEADERS
     with patch("backend.api.routes_admin._run_ingest"):
-        resp = client.post("/admin/ingest", json={})
+        resp = client.post("/admin/ingest", json={}, headers=ADMIN_HEADERS)
     assert resp.status_code != 429
 
 

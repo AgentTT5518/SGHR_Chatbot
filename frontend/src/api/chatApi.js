@@ -5,14 +5,17 @@ const API_BASE = ""; // Vite proxy routes /api, /health, /admin to localhost:800
  * Calls onToken(text) for each streamed token.
  * Returns { sources } on completion.
  */
-export async function sendMessage({ sessionId, userId, message, userRole, onToken, onStatus, onError }) {
+export async function sendMessage({ sessionId, userId, message, userRole, onToken, onStatus, onError, onSessionToken }) {
   let sources = [];
   try {
     const response = await fetch(`${API_BASE}/api/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(sessionId ? { "X-Session-Token": sessionId } : {}),
+      },
       body: JSON.stringify({
-        session_id: sessionId,
+        session_id: sessionId || null,
         user_id: userId,
         message,
         user_role: userRole,
@@ -53,6 +56,9 @@ export async function sendMessage({ sessionId, userId, message, userRole, onToke
           }
           if (event.done) {
             sources = event.sources || [];
+            if (event.signed_session_id) {
+              onSessionToken?.(event.signed_session_id);
+            }
           }
         } catch {
           // malformed SSE line — skip
@@ -70,8 +76,11 @@ export async function sendMessage({ sessionId, userId, message, userRole, onToke
  * Returns null if session not found (404) or on network error.
  */
 export async function fetchHistory(sessionId) {
+  if (!sessionId) return null;
   try {
-    const response = await fetch(`${API_BASE}/api/sessions/${sessionId}/history`);
+    const response = await fetch(`${API_BASE}/api/sessions/${sessionId}/history`, {
+      headers: { "X-Session-Token": sessionId },
+    });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
@@ -104,7 +113,10 @@ export async function submitFeedback({ sessionId, messageIndex, rating, comment 
   try {
     const response = await fetch(`${API_BASE}/api/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(sessionId ? { "X-Session-Token": sessionId } : {}),
+      },
       body: JSON.stringify({
         session_id: sessionId,
         message_index: messageIndex,

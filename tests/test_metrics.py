@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from backend.lib import metrics as metrics_module
 from backend.main import app
+from tests.conftest import ADMIN_HEADERS
 
 
 @pytest.fixture(autouse=True)
@@ -79,7 +80,7 @@ def test_metrics_endpoint_returns_200(client):
         "backend.chat.session_manager.get_feedback_stats",
         new=AsyncMock(return_value={"total": 0, "up": 0, "down": 0}),
     ):
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
 
 
@@ -89,7 +90,7 @@ def test_metrics_endpoint_includes_feedback(client):
         "backend.chat.session_manager.get_feedback_stats",
         new=AsyncMock(return_value=fake_stats),
     ):
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers=ADMIN_HEADERS)
     data = resp.json()
     assert "feedback" in data
     assert data["feedback"]["total"] == 3
@@ -100,7 +101,12 @@ def test_metrics_endpoint_has_required_keys(client):
         "backend.chat.session_manager.get_feedback_stats",
         new=AsyncMock(return_value={}),
     ):
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers=ADMIN_HEADERS)
     data = resp.json()
     for key in ("total_requests", "total_errors", "avg_latency_ms", "endpoints"):
         assert key in data
+
+
+def test_metrics_requires_admin_key(client):
+    resp = client.get("/metrics")
+    assert resp.status_code == 401

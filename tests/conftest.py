@@ -12,6 +12,19 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from backend.lib.session_signer import create_signed_session
+
+# ── Auth test helpers ─────────────────────────────────────────────────────────
+
+ADMIN_HEADERS: dict[str, str] = {"X-Admin-Key": "dev-only-key"}
+
+
+def make_signed_session() -> tuple[str, str]:
+    """Return ``(raw_session_id, signed_token)``."""
+    signed = create_signed_session()
+    raw = signed.rsplit(".", 1)[0]
+    return raw, signed
+
 
 def _fake_encode(texts, **kwargs):
     """Return deterministic embeddings matching BGE dimensions."""

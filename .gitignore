@@ -14,6 +14,7 @@ frontend/.vite/
 *.log
 .DS_Store
 tests/test-results/
+tests/eval/results/
 # Claude Code — commit commands/ only; ignore everything else
 .claude/*
 !.claude/commands/

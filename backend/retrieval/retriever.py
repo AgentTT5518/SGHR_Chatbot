@@ -14,16 +14,12 @@ from backend.retrieval import vector_store
 
 log = get_logger("retrieval.retriever")
 
-# Relative threshold floor: never filter tighter than this distance.
-# Tune empirically after ingestion.
-THRESHOLD_FLOOR = 0.25
-THRESHOLD_MULTIPLIER = 1.5
-
-# RRF smoothing constant
-_RRF_K = 60
-
-# Max results after any merge/filter step
-_MAX_RESULTS = 8
+# Retrieval constants — now configurable via settings/env.
+# Legacy module-level references point to settings for backward compat.
+THRESHOLD_FLOOR = settings.threshold_floor if hasattr(settings, "threshold_floor") else 0.25
+THRESHOLD_MULTIPLIER = settings.threshold_multiplier if hasattr(settings, "threshold_multiplier") else 1.5
+_RRF_K = settings.rrf_k if hasattr(settings, "rrf_k") else 60
+_MAX_RESULTS = settings.max_retrieval_results if hasattr(settings, "max_retrieval_results") else 8
 
 # Section 2 keywords that trigger automatic definition inclusion
 DEFINITION_KEYWORDS = {

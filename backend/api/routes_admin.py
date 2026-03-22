@@ -10,17 +10,18 @@ GET  /admin/feedback/candidates — thumbs-up answers not yet cached
 GET  /admin/faq-patterns — FAQ query clusters and knowledge gaps
 """
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from backend.config import RAW_SCRAPED_DIR, settings
 from backend.ingestion.scraper_mom import SEED_URLS, HEADERS
+from backend.lib.admin_auth import require_admin
 from backend.lib.limiter import limiter
 from backend.lib.logger import get_logger
 
 log = get_logger("api.routes_admin")
 
-router = APIRouter(prefix="/admin")
+router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
 
 class IngestRequest(BaseModel):

@@ -13,6 +13,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from tests.conftest import ADMIN_HEADERS
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ def client():
 
 def test_ingest_starts_background_task(client):
     with patch("backend.api.routes_admin._run_ingest") as mock_run:
-        resp = client.post("/admin/ingest", json={"force_rescrape": False})
+        resp = client.post("/admin/ingest", json={"force_rescrape": False}, headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "started"
@@ -34,16 +35,26 @@ def test_ingest_starts_background_task(client):
 
 def test_ingest_force_rescrape_flag_passed(client):
     with patch("backend.api.routes_admin._run_ingest") as mock_run:
-        resp = client.post("/admin/ingest", json={"force_rescrape": True})
+        resp = client.post("/admin/ingest", json={"force_rescrape": True}, headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["force_rescrape"] is True
 
 
 def test_ingest_default_no_force_rescrape(client):
     with patch("backend.api.routes_admin._run_ingest"):
-        resp = client.post("/admin/ingest", json={})
+        resp = client.post("/admin/ingest", json={}, headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["force_rescrape"] is False
+
+
+def test_ingest_requires_admin_key(client):
+    resp = client.post("/admin/ingest", json={})
+    assert resp.status_code == 401
+
+
+def test_ingest_rejects_wrong_key(client):
+    resp = client.post("/admin/ingest", json={}, headers={"X-Admin-Key": "wrong"})
+    assert resp.status_code == 403
 
 
 # ── GET /admin/health/sources ─────────────────────────────────────────────────
@@ -58,7 +69,7 @@ def test_health_sources_all_ok(client):
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
     with patch("backend.api.routes_admin.httpx.AsyncClient", return_value=mock_client):
-        resp = client.get("/admin/health/sources")
+        resp = client.get("/admin/health/sources", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -74,7 +85,7 @@ def test_health_sources_handles_connection_error(client):
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
     with patch("backend.api.routes_admin.httpx.AsyncClient", return_value=mock_client):
-        resp = client.get("/admin/health/sources")
+        resp = client.get("/admin/health/sources", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -91,7 +102,7 @@ def test_collections_returns_counts(client):
 
     # get_collection is imported lazily inside the endpoint body
     with patch("backend.retrieval.vector_store.get_collection", return_value=mock_col):
-        resp = client.get("/admin/collections")
+        resp = client.get("/admin/collections", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -101,7 +112,7 @@ def test_collections_returns_counts(client):
 
 def test_collections_returns_error_on_exception(client):
     with patch("backend.retrieval.vector_store.get_collection", side_effect=Exception("chroma down")):
-        resp = client.get("/admin/collections")
+        resp = client.get("/admin/collections", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     assert "error" in resp.json()
@@ -114,7 +125,7 @@ def test_collections_returns_error_on_exception(client):
 def test_list_verified_answers(client):
     mock_answers = [{"id": "id-1", "question": "Q1", "answer": "A1", "sources": []}]
     with patch("backend.memory.semantic_cache.list_verified_answers", return_value=mock_answers):
-        resp = client.get("/admin/verified-answers")
+        resp = client.get("/admin/verified-answers", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["answers"]) == 1
@@ -130,7 +141,7 @@ def test_create_verified_answer(client):
             "question": "What is CPF?",
             "answer": "CPF is the Central Provident Fund.",
             "sources": [],
-        })
+        }, headers=ADMIN_HEADERS)
     assert resp.status_code == 201
     assert resp.json()["id"] == "new-id"
 
@@ -140,7 +151,7 @@ def test_create_verified_answer(client):
 
 def test_delete_verified_answer(client):
     with patch("backend.memory.semantic_cache.remove_verified_answer") as mock_rm:
-        resp = client.delete("/admin/verified-answers/some-id")
+        resp = client.delete("/admin/verified-answers/some-id", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["success"] is True
     mock_rm.assert_called_once_with("some-id")
@@ -159,7 +170,7 @@ def test_feedback_candidates(client):
     ]
     with patch("backend.chat.session_manager.get_feedback", new_callable=AsyncMock, return_value=mock_feedback), \
          patch("backend.chat.session_manager.get_full_history", new_callable=AsyncMock, return_value=mock_history):
-        resp = client.get("/admin/feedback/candidates")
+        resp = client.get("/admin/feedback/candidates", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["candidates"]) == 1
@@ -176,7 +187,7 @@ def test_faq_patterns_returns_structure(client):
 
     with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, return_value=mock_patterns), \
          patch("backend.memory.faq_analyzer.identify_gaps", new_callable=AsyncMock, return_value=mock_gaps):
-        resp = client.get("/admin/faq-patterns?days=14")
+        resp = client.get("/admin/faq-patterns?days=14", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -190,7 +201,7 @@ def test_faq_patterns_returns_structure(client):
 def test_faq_patterns_default_days(client):
     with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, return_value=[]) as mock_analyze, \
          patch("backend.memory.faq_analyzer.identify_gaps", new_callable=AsyncMock, return_value=[]):
-        resp = client.get("/admin/faq-patterns")
+        resp = client.get("/admin/faq-patterns", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     mock_analyze.assert_called_once_with(days=30)
@@ -198,6 +209,6 @@ def test_faq_patterns_default_days(client):
 
 def test_faq_patterns_handles_error(client):
     with patch("backend.memory.faq_analyzer.analyze_query_patterns", new_callable=AsyncMock, side_effect=Exception("boom")):
-        resp = client.get("/admin/faq-patterns")
+        resp = client.get("/admin/faq-patterns", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 500

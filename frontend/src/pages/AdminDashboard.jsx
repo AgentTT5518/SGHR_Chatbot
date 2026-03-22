@@ -12,9 +12,39 @@ import {
   deleteVerifiedAnswer,
   fetchCacheCandidates,
   fetchFaqPatterns,
+  getAdminKey,
+  setAdminKey,
 } from "../api/adminApi";
 
 const TABS = ["Health", "Ingestion", "Feedback", "Verified Answers", "FAQ Patterns", "Metrics"];
+
+function AdminKeyInput() {
+  const [key, setKey] = useState(getAdminKey());
+  const [saved, setSaved] = useState(!!getAdminKey());
+
+  function handleSave() {
+    setAdminKey(key);
+    setSaved(true);
+  }
+
+  return (
+    <div className="admin-key-bar">
+      <label htmlFor="admin-key-input">Admin API Key:</label>
+      <input
+        id="admin-key-input"
+        type="password"
+        value={key}
+        onChange={(e) => { setKey(e.target.value); setSaved(false); }}
+        onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        placeholder="Enter admin API key"
+        className="admin-key-input"
+      />
+      <button className="admin-btn-primary" onClick={handleSave} disabled={saved}>
+        {saved ? "Saved" : "Save"}
+      </button>
+    </div>
+  );
+}
 
 export function AdminDashboard({ onClose }) {
   const [activeTab, setActiveTab] = useState("Health");
@@ -27,6 +57,8 @@ export function AdminDashboard({ onClose }) {
           ← Back to Chat
         </button>
       </header>
+
+      <AdminKeyInput />
 
       <nav className="admin-tabs">
         {TABS.map((tab) => (
