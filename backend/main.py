@@ -16,6 +16,7 @@ from backend.api.routes_admin import router as admin_router
 from backend.api.routes_feedback import router as feedback_router
 from backend.api.routes_profile import router as profile_router
 from backend.chat import session_manager
+from backend.config import settings as _settings
 from backend.memory import profile_store
 from backend.lib.admin_auth import require_admin
 from backend.lib.limiter import limiter
@@ -90,7 +91,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 app.add_middleware(MetricsMiddleware)
 
 # CORS — origins from env (ALLOWED_ORIGINS), defaults to localhost:5173
-from backend.config import settings as _settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_settings.allowed_origins_list,
@@ -101,7 +101,7 @@ app.add_middleware(
 
 # HTTPS redirect in production
 if _settings.enforce_https:
-    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware  # noqa: E402
     app.add_middleware(HTTPSRedirectMiddleware)
 
 app.include_router(chat_router)
