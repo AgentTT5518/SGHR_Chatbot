@@ -1,19 +1,15 @@
-# Next Session Prompt — Post Enhancing Chatbot
+# Next Session Prompt — Post Auth, Testing & Tuning
 
 Copy everything below the line into a new Claude Code session.
 
 ---
 
-The "Enhancing Chatbot" feature is **fully complete** including Phase 4A/4B. All 6 PRs have been merged:
+The "Auth Hardening, Testing Improvements & Retrieval Tuning" feature is **fully complete**. PR #13 merged.
 
-| PR | Phase | Status |
-|----|-------|--------|
-| PR 1 | Phase 1: Token budget + SummaryBuffer + persistent user ID | Merged |
-| PR 2 | Phase 2A-2D + 4C: Tool registry + all tools + metadata filtering | Merged |
-| PR 3 | Phase 2E: Orchestrator + frontend thinking UX | Merged |
-| PR 4 | Phase 3A-3B: Profile memory + verified Q&A cache | Merged |
-| PR 5 | Phase 3C: FAQ pattern detection | Merged |
-| PR 6 | Phase 4A/4B: Query expansion + contextual compression | Merged |
+| PR | Feature | Status |
+|----|---------|--------|
+| PR 1–6 | Enhancing Chatbot (Phases 1–4B) | Merged |
+| PR 13 | Auth Hardening + Testing + Retrieval Tuning | Merged |
 
 ## Current system capabilities
 
@@ -26,39 +22,50 @@ The "Enhancing Chatbot" feature is **fully complete** including Phase 4A/4B. All
 - **Contextual compression** — embedding similarity filtering (toggleable)
 - **Hybrid retrieval** — semantic + TF-IDF + RRF with metadata filtering
 - **Admin dashboard** — feedback, escalations, verified answers, FAQ patterns tabs
+- **HMAC session signing** — server-generated, tamper-proof session IDs
+- **Admin API key auth** — all /admin/* and /metrics protected with audit logging
+- **Route protection** — profile ownership, session validation, feedback checks
+- **Per-session rate limiting** — composite key (session token → IP fallback)
+- **Env-based deployment config** — CORS origins, HTTPS redirect, environment toggle
+- **468 passing tests** — unit, integration, auth, orchestrator
+- **Retrieval eval framework** — 55 labelled queries, keyword recall metrics
+- **Load testing** — Locust setup with SSE consumption
+- **Parameter sweep** — two-stage (45 fast + 15 expansion) retrieval tuning
 
 ## Finalization done
 
-- `docs/requirements/enhancing-chatbot.md` — Feature requirements doc (complete)
-- `docs/decisions/enhancing-chatbot.md` — 12 Architecture Decision Records
-- `Plan/Archive/enhancing-chatbot/` — Full plan archived
-- `ARCHITECTURE.md` — Up to date with all 6 PRs
+- `docs/requirements/auth-testing-tuning.md` — Feature requirements doc
+- `docs/decisions/auth-testing-tuning.md` — 9 Architecture Decision Records
+- `Plan/Archive/auth-testing-tuning/` — Full plan archived
+- `ARCHITECTURE.md` — Up to date with all features
+
+## Operational tasks (require running server + ingested data)
+
+1. **Run retrieval baseline** — `python -m tests.eval.eval_retrieval`
+2. **Run parameter sweep** — `python -m tests.eval.sweep`
+3. **Apply optimal settings** — Update config.py defaults from sweep results
+4. **Flip session signing enforcement** — Set `SESSION_SIGNING_ENFORCED=true` after one release cycle
 
 ## What to work on next
 
 Pick based on priorities:
 
-1. **Auth & deployment hardening** — Needed before any public deployment
-   - User authentication (JWT or session-based)
-   - CORS configuration for production
-   - HTTPS enforcement
-   - Rate limiting per user (not just per IP)
-   - Environment-specific configs (dev/staging/prod)
+1. **Real user authentication** — Move beyond anonymous sessions
+   - JWT or OAuth2 with actual user accounts
+   - Per-user rate limiting tied to authenticated identity
+   - Role-based access (employee vs HR vs admin)
+   - Password hashing, registration, login flow
 
-2. **Testing improvements**
-   - E2E tests (frontend → backend → ChromaDB)
-   - Load testing (concurrent users, API latency benchmarks)
-   - Integration tests for the orchestrator tool-use loop
-   - Retrieval quality evaluation (precision/recall against labeled query set)
+2. **Production deployment**
+   - Docker containerization
+   - Production database (PostgreSQL replacing SQLite)
+   - CI/CD pipeline for staging → prod
+   - Monitoring & alerting (Prometheus + Grafana)
+   - Log aggregation
 
-3. **Retrieval quality tuning** — Now that 4A/4B are deployed
-   - Tune `COMPRESSION_THRESHOLD` (currently 0.45) with real queries
-   - Tune `QUERY_EXPANSION_COUNT` (currently 3)
-   - Evaluate whether expansion actually improves recall for HR synonyms
-   - Consider Phase 4A/4B latency impact in production
-
-4. **New features** — Check with user for priorities
-   - Document upload (user provides their employment contract for context)
+3. **New features** — Check with user for priorities
+   - Document upload (user provides employment contract for context)
    - Multi-language support (common Singapore languages)
    - Email/export conversation history
    - Notification system for escalations
+   - Conversation analytics dashboard
