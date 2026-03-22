@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Semantic cache settings (Phase 3)
     cache_high_threshold: float = 0.95
     cache_medium_threshold: float = 0.88
+    # Query expansion settings (Phase 4A)
+    use_query_expansion: bool = True
+    query_expansion_count: int = 3
+    # Contextual compression settings (Phase 4B)
+    use_contextual_compression: bool = True
+    compression_threshold: float = 0.45
 
     class Config:
         env_file = BASE_DIR.parent / ".env"

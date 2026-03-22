@@ -1,6 +1,6 @@
 # Architecture — SGHR Chatbot
 
-> Last updated: 2026-03-21 (Phase 3 — FAQ Patterns) | Updated by: Claude Code
+> Last updated: 2026-03-22 (Phase 4A/4B — Query Expansion & Contextual Compression) | Updated by: Claude Code
 
 ## System Overview
 SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Singapore Employment Act and MOM guidelines. It serves employees and HR managers via a React chat interface, streaming responses from Claude through a FastAPI backend backed by ChromaDB vector search.
@@ -91,13 +91,15 @@ graph TB
 | Context Manager | `backend/chat/context_manager.py` | SummaryBuffer: compresses older history via Haiku, extracts session facts | session_manager, token_budget, Anthropic SDK (Haiku) |
 | Session Manager | `backend/chat/session_manager.py` | CRUD for conversation history + feedback + escalations + summary + facts, TTL cleanup | aiosqlite, SQLite |
 | Tool Registry | `backend/chat/tools/registry.py` | Tool schema definitions (Anthropic format), dispatch map, handler registration | — |
-| Retrieval Tools | `backend/chat/tools/retrieval_tools.py` | search_employment_act, search_mom_guidelines, search_all_policies, get_legal_definitions | retriever, prompts |
+| Retrieval Tools | `backend/chat/tools/retrieval_tools.py` | search_employment_act, search_mom_guidelines, search_all_policies, get_legal_definitions; enhanced retrieval pipeline (expand → retrieve_multi → compress) | retriever, query_expander, compressor, prompts |
 | Calculation Tools | `backend/chat/tools/calculation_tools.py` | calculate_leave_entitlement (annual/sick/maternity/paternity/childcare), calculate_notice_period | — |
 | Routing Tools | `backend/chat/tools/routing_tools.py` | check_eligibility (EA Part IV thresholds), escalate_to_hr (SQLite log) | session_manager |
 | Prompts | `backend/chat/prompts.py` | System prompt builder, context formatter, source extractor | — |
-| Retriever | `backend/retrieval/retriever.py` | Hybrid retrieval (semantic + keyword RRF) + definitions injection + per-collection search | vector_store, keyword_search |
+| Retriever | `backend/retrieval/retriever.py` | Hybrid retrieval (semantic + keyword RRF) + definitions injection + per-collection search + multi-query retrieval with generalized N-list RRF | vector_store, keyword_search, embedder |
+| Query Expander | `backend/retrieval/query_expander.py` | Haiku-based query expansion; generates 2-3 HR synonym rephrasings; best-effort (returns original on failure) | Anthropic SDK (Haiku) |
+| Compressor | `backend/retrieval/compressor.py` | Contextual compression; filters chunks by cosine similarity to query using stored ChromaDB embeddings; replaces _apply_threshold when enabled | — |
 | Keyword Search | `backend/retrieval/keyword_search.py` | TF-IDF over ChromaDB corpus, lazy singleton, RRF input | scikit-learn |
-| Vector Store | `backend/retrieval/vector_store.py` | ChromaDB wrapper (collections, readiness check, bulk fetch, metadata filtering) | chromadb |
+| Vector Store | `backend/retrieval/vector_store.py` | ChromaDB wrapper (collections, readiness check, bulk fetch, metadata filtering, optional embedding return) | chromadb |
 | Ingest Pipeline | `backend/ingestion/ingest_pipeline.py` | Orchestrates scrape → chunk → embed → store | scraper, chunker, embedder |
 | Embedder | `backend/ingestion/embedder.py` | BGE model wrapper, lazy singleton | sentence-transformers |
 | Chunker | `backend/ingestion/chunker.py` | Text splitting with overlap | — |
@@ -224,6 +226,7 @@ Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 | Enhancing Chatbot Phase 2 — Orchestrator | 2026-03-21 | Agentic tool-use loop replaces static RAG pipeline; streaming throughout all iterations (no double API call); status SSE events for tool dispatch; source extraction from tool results; max 5 iterations with graceful fallback; feature flag (use_orchestrator) for legacy fallback; simplified system prompt for tool-use mode; frontend thinking steps UI | `orchestrator.py`, `prompts.py`, `routes_chat.py`, `config.py`, `chatApi.js`, `useChat.js`, `MessageBubble.jsx`, `index.css` |
 | Enhancing Chatbot Phase 3 — Profile & Cache | 2026-03-21 | Profile memory store (SQLite user_profiles, Haiku fact extraction, merge-without-overwrite upsert, 2yr stale cleanup); Verified Q&A semantic cache (ChromaDB verified_answers collection, two-tier confidence matching at 0.95/0.88, cache hit skips Claude API, medium-confidence disclaimer); profile routes (GET/DELETE for privacy compliance); admin verified answers CRUD + feedback candidates endpoint; frontend Verified Answers admin tab | `memory/profile_store.py`, `memory/fact_extractor.py`, `memory/semantic_cache.py`, `api/routes_profile.py`, `api/routes_admin.py`, `chat/orchestrator.py`, `config.py`, `main.py`, `adminApi.js`, `AdminDashboard.jsx` |
 | Enhancing Chatbot Phase 3 — FAQ Patterns | 2026-03-21 | FAQ analyzer using DBSCAN clustering on BGE embeddings (eps=0.3, cosine metric); two analysis modes: top query patterns (frequent clusters) and knowledge gaps (thumbs-down + escalation clusters); capped at 500 most recent queries; admin endpoint GET /admin/faq-patterns with days parameter; frontend FAQ Patterns tab with days selector and expandable sample queries | `memory/faq_analyzer.py`, `api/routes_admin.py`, `adminApi.js`, `AdminDashboard.jsx` |
+| Enhancing Chatbot Phase 4A/4B — Retrieval Quality | 2026-03-22 | Query expansion via Haiku (2-3 HR synonym rephrasings per query, best-effort); generalized N-list RRF with id-based dedup (replaces text[:100] key); parallel multi-query retrieval via ThreadPoolExecutor; contextual compression using stored ChromaDB embeddings + cosine similarity filtering (replaces _apply_threshold when enabled); both features independently toggleable via config; vector_store returns optional embeddings | `retrieval/query_expander.py`, `retrieval/compressor.py`, `retrieval/retriever.py`, `retrieval/vector_store.py`, `chat/tools/retrieval_tools.py`, `config.py`, `.env.example` |
 
 > Add a row after completing each feature.
 

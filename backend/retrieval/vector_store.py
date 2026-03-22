@@ -33,34 +33,45 @@ def query(
     query_embedding: list[float],
     n: int = 10,
     where: dict | None = None,
+    include_embeddings: bool = False,
 ) -> list[dict]:
     """
     Query a ChromaDB collection.
     Returns list of {id, text, metadata, distance} dicts sorted by distance (ascending).
     Optional `where` dict is passed directly to ChromaDB as a metadata filter.
+    When `include_embeddings` is True, each result also contains an `embedding` field.
     """
     col = get_collection(collection_name)
     if col.count() == 0:
         return []
 
+    include_fields = ["documents", "metadatas", "distances"]
+    if include_embeddings:
+        include_fields.append("embeddings")
+
     query_kwargs: dict = {
         "query_embeddings": [query_embedding],
         "n_results": min(n, col.count()),
-        "include": ["documents", "metadatas", "distances"],
+        "include": include_fields,
     }
     if where:
         query_kwargs["where"] = where
 
     results = col.query(**query_kwargs)
 
+    embeddings_list = results.get("embeddings", [None])[0] if include_embeddings else None
+
     output = []
-    for doc_id, doc, meta, dist in zip(
+    for i, (doc_id, doc, meta, dist) in enumerate(zip(
         results["ids"][0],
         results["documents"][0],
         results["metadatas"][0],
         results["distances"][0],
-    ):
-        output.append({"id": doc_id, "text": doc, "metadata": meta, "distance": dist})
+    )):
+        entry: dict = {"id": doc_id, "text": doc, "metadata": meta, "distance": dist}
+        if include_embeddings and embeddings_list is not None:
+            entry["embedding"] = embeddings_list[i]
+        output.append(entry)
     return output
 
 
