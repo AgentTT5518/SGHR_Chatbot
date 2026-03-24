@@ -615,3 +615,282 @@ class TestSemanticCacheHitIntegration:
 
         # Claude was called (cache was bypassed)
         mock_client.messages.stream.assert_called_once()
+
+
+# ── Test 6: Multi-turn conversation ──────────────────────────────────────────
+
+
+class TestMultiTurnConversationIntegration:
+    """Verify context carries over across multiple orchestrate calls."""
+
+    @pytest.mark.asyncio
+    async def test_follow_up_question_includes_history(self):
+        """Second call to orchestrate should include prior context in messages."""
+        text_stream_1 = _make_text_stream(["Annual leave is 7 days in the first year."])
+        text_stream_2 = _make_text_stream(["After 3 years, you get 9 days of annual leave."])
+
+        captured_messages: list[Any] = []
+        streams = [text_stream_1, text_stream_2]
+        call_idx = 0
+
+        def capture_stream(**kwargs):
+            nonlocal call_idx
+            captured_messages.append(kwargs.get("messages", []))
+            result = streams[call_idx]
+            call_idx += 1
+            return result
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = capture_stream
+
+        with patch("backend.chat.orchestrator.get_client", return_value=mock_client):
+            # First turn
+            await _collect(orchestrate("s-mt-1", "u1", "How many days of annual leave?"))
+            # Second turn
+            await _collect(orchestrate("s-mt-1", "u1", "What about after 3 years?"))
+
+        # Both calls should have been made
+        assert len(captured_messages) == 2
+        # Second call's messages should contain the follow-up question
+        second_msgs = captured_messages[1]
+        user_msgs = [m for m in second_msgs if m.get("role") == "user" and isinstance(m.get("content"), str)]
+        assert any("3 years" in m["content"] for m in user_msgs)
+
+    @pytest.mark.asyncio
+    async def test_multi_turn_persists_all_messages(self):
+        """Both turns persist user + assistant messages."""
+        text_stream_1 = _make_text_stream(["First answer."])
+        text_stream_2 = _make_text_stream(["Second answer."])
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = [text_stream_1, text_stream_2]
+        mock_add = AsyncMock()
+
+        with (
+            patch("backend.chat.orchestrator.get_client", return_value=mock_client),
+            patch("backend.chat.orchestrator.session_manager.add_message", mock_add),
+        ):
+            await _collect(orchestrate("s-mt-2", "u1", "First question"))
+            await _collect(orchestrate("s-mt-2", "u1", "Second question"))
+
+        # 4 messages: user+assistant for each turn
+        assert mock_add.call_count == 4
+        roles = [c.args[1] for c in mock_add.call_args_list]
+        assert roles == ["user", "assistant", "user", "assistant"]
+
+
+# ── Test 7: Tool chaining (retrieval + calculation) ──────────────────────────
+
+
+class TestToolChainingIntegration:
+    """Claude chains retrieval + calculation tools in a single conversation."""
+
+    @pytest.mark.asyncio
+    async def test_search_then_calculate_then_answer(self):
+        """Search for leave info, then calculate entitlement, then answer."""
+        search_stream = _make_tool_use_stream(
+            "search_employment_act", "tool_chain_1",
+            {"query": "annual leave entitlement by tenure"},
+        )
+        calc_stream = _make_tool_use_stream(
+            "calculate_leave_entitlement", "tool_chain_2",
+            {"tenure_years": 5, "employment_type": "full_time", "leave_type": "annual"},
+        )
+        text_stream = _make_text_stream(["With 5 years of service, you get 11 days of annual leave."])
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = [search_stream, calc_stream, text_stream]
+
+        with patch("backend.chat.orchestrator.get_client", return_value=mock_client):
+            events = await _collect(
+                orchestrate("s-chain-1", "u1", "Am I entitled to annual leave and how many days? I've worked 5 years.")
+            )
+
+        # Two status events for two tool calls
+        status_events = [e for e in events if "status" in e]
+        assert len(status_events) == 2
+
+        # Three API calls
+        assert mock_client.messages.stream.call_count == 3
+
+        final = events[-1]
+        assert final["done"] is True
+
+    @pytest.mark.asyncio
+    async def test_eligibility_check_then_search_then_calculation(self):
+        """Three-tool chain: eligibility → search → calculation → answer."""
+        elig_stream = _make_tool_use_stream(
+            "check_eligibility", "tool_3c_1",
+            {"salary_monthly": 2500, "role": "non_workman", "employment_type": "full_time"},
+        )
+        search_stream = _make_tool_use_stream(
+            "search_employment_act", "tool_3c_2",
+            {"query": "overtime pay calculation Part IV"},
+        )
+        calc_stream = _make_tool_use_stream(
+            "calculate_notice_period", "tool_3c_3",
+            {"tenure_years": 2, "notice_clause": "none"},
+        )
+        text_stream = _make_text_stream(["Your notice period is 2 weeks based on Part IV coverage."])
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = [elig_stream, search_stream, calc_stream, text_stream]
+
+        with patch("backend.chat.orchestrator.get_client", return_value=mock_client):
+            events = await _collect(
+                orchestrate("s-chain-2", "u1", "What's my notice period? I earn $2500, worked 2 years.")
+            )
+
+        status_events = [e for e in events if "status" in e]
+        assert len(status_events) == 3
+        assert mock_client.messages.stream.call_count == 4
+        assert events[-1]["done"] is True
+
+
+# ── Test 8: Fallback behavior with graceful message ──────────────────────────
+
+
+class TestFallbackBehaviorIntegration:
+    """Verify graceful fallback when max iterations are reached."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_message_contains_contact_info(self):
+        """Fallback message should direct user to MOM contact info."""
+        tool_streams = [
+            _make_tool_use_stream(
+                "search_employment_act", f"tool_fb_{i}", {"query": f"q{i}"},
+            )
+            for i in range(5)
+        ]
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = tool_streams
+
+        with patch("backend.chat.orchestrator.get_client", return_value=mock_client):
+            events = await _collect(orchestrate("s-fb-1", "u1", "complex question"))
+
+        final = events[-1]
+        assert final["done"] is True
+        assert "www.mom.gov.sg" in final["token"]
+        assert "6438 5122" in final["token"]
+        assert final["sources"] == []
+
+    @pytest.mark.asyncio
+    async def test_fallback_after_mixed_tool_success_and_failure(self):
+        """Max iterations with a mix of successful and failed tools."""
+        streams = []
+        for i in range(5):
+            streams.append(_make_tool_use_stream(
+                "search_employment_act", f"tool_mix_{i}", {"query": f"query {i}"},
+            ))
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = streams
+
+        # Make every other tool fail
+        call_count = 0
+        original_retrieve = AsyncMock(return_value=[
+            {"content": "test content", "source": "test", "url": ""},
+        ])
+
+        async def alternating_retrieve(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count % 2 == 0:
+                raise RuntimeError("Intermittent failure")
+            return await original_retrieve(*args, **kwargs)
+
+        with (
+            patch("backend.chat.orchestrator.get_client", return_value=mock_client),
+            patch(
+                "backend.chat.tools.retrieval_tools._enhanced_retrieve",
+                new=AsyncMock(side_effect=alternating_retrieve),
+            ),
+        ):
+            events = await _collect(orchestrate("s-fb-2", "u1", "complex iterative question"))
+
+        final = events[-1]
+        assert final["done"] is True
+        assert FALLBACK_MAX_ITERATIONS in final["token"]
+
+
+# ── Test 9: Error recovery ───────────────────────────────────────────────────
+
+
+class TestErrorRecoveryIntegration:
+    """Tool raises exception mid-loop, verify error is caught and user gets helpful response."""
+
+    @pytest.mark.asyncio
+    async def test_tool_error_recovery_produces_helpful_answer(self):
+        """Tool fails, Claude receives error, and produces a helpful text answer."""
+        tool_stream = _make_tool_use_stream(
+            "search_employment_act", "tool_rec_1", {"query": "sick leave"},
+        )
+        text_stream = _make_text_stream([
+            "I wasn't able to search the database, but I can tell you that "
+            "sick leave in Singapore is governed by the Employment Act."
+        ])
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = [tool_stream, text_stream]
+
+        with (
+            patch("backend.chat.orchestrator.get_client", return_value=mock_client),
+            patch(
+                "backend.chat.tools.retrieval_tools._enhanced_retrieve",
+                new=AsyncMock(side_effect=TimeoutError("Search timed out")),
+            ),
+        ):
+            events = await _collect(orchestrate("s-rec-1", "u1", "What are the sick leave rules?"))
+
+        final = events[-1]
+        assert final["done"] is True
+        assert "error" not in final  # Claude recovered, no top-level error
+
+    @pytest.mark.asyncio
+    async def test_multiple_tool_errors_still_resolve(self):
+        """Multiple tool errors across iterations still produce a final answer."""
+        # Three tool calls, all fail, then Claude gives text answer
+        tool_streams = [
+            _make_tool_use_stream(
+                "search_employment_act", f"tool_merr_{i}", {"query": f"q{i}"},
+            )
+            for i in range(3)
+        ]
+        text_stream = _make_text_stream(["Despite search difficulties, here's what I know."])
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = tool_streams + [text_stream]
+
+        with (
+            patch("backend.chat.orchestrator.get_client", return_value=mock_client),
+            patch(
+                "backend.chat.tools.retrieval_tools._enhanced_retrieve",
+                new=AsyncMock(side_effect=ConnectionError("DB down")),
+            ),
+        ):
+            events = await _collect(orchestrate("s-rec-2", "u1", "employment query"))
+
+        final = events[-1]
+        assert final["done"] is True
+        assert mock_client.messages.stream.call_count == 4  # 3 tool iterations + 1 text
+
+    @pytest.mark.asyncio
+    async def test_anthropic_api_error_yields_error_event(self):
+        """If the Anthropic API itself errors, an error SSE event is emitted."""
+        import anthropic
+
+        mock_client = MagicMock()
+        mock_client.messages.stream.side_effect = anthropic.APIError(
+            message="Rate limit exceeded",
+            request=MagicMock(),
+            body=None,
+        )
+
+        with patch("backend.chat.orchestrator.get_client", return_value=mock_client):
+            events = await _collect(orchestrate("s-rec-3", "u1", "any question"))
+
+        assert len(events) == 1
+        assert events[0]["done"] is True
+        assert "error" in events[0]
+        assert "Rate limit" in events[0]["error"]
