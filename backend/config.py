@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     threshold_multiplier: float = 1.5
     rrf_k: int = 60
     max_retrieval_results: int = 8
+    # Load testing mock mode
+    mock_llm: bool = False
     # Environment & deployment (Phase 5 — Auth Hardening)
     environment: str = "dev"  # "dev" | "staging" | "prod"
     allowed_origins: str = "http://localhost:5173"

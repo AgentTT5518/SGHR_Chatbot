@@ -162,6 +162,17 @@ async def orchestrate(
         await session_manager.add_message(session_id, "assistant", cache_result.answer)
         return
 
+    # 1a-mock. Mock LLM mode for load testing — return canned response
+    if settings.mock_llm:
+        canned = (
+            "This is a mock response for load testing. "
+            "The Employment Act governs employment terms in Singapore."
+        )
+        yield _sse({"token": canned, "done": True, "sources": []})
+        await session_manager.add_message(session_id, "user", user_message)
+        await session_manager.add_message(session_id, "assistant", canned)
+        return
+
     # 1b. Load user profile and inject into system prompt
     try:
         profile = await profile_store.get_profile(user_id)

@@ -1,6 +1,6 @@
 # Architecture — SGHR Chatbot
 
-> Last updated: 2026-03-22 (Auth & Deployment Hardening) | Updated by: Claude Code
+> Last updated: 2026-03-25 (Testing Improvements Track 2) | Updated by: Claude Code
 
 ## System Overview
 SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Singapore Employment Act and MOM guidelines. It serves employees and HR managers via a React chat interface, streaming responses from Claude through a FastAPI backend backed by ChromaDB vector search.
@@ -243,6 +243,7 @@ Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 | Retrieval Quality Tuning | 2026-03-22 | Moved hardcoded retriever constants (THRESHOLD_FLOOR, THRESHOLD_MULTIPLIER, RRF_K, MAX_RESULTS) to config.py for env-based tuning; two-stage parameter sweep script (Stage 1: 45 configs expansion OFF, Stage 2: top-5 with expansion ON at 3 expansion counts) | `config.py`, `retrieval/retriever.py`, `.env.example`, `tests/eval/sweep.py` |
 | Testing Improvements | 2026-03-22 | Auth unit tests (session signer + admin auth); orchestrator integration tests (14 tests: single/multi tool dispatch, max iterations fallback, tool error recovery, semantic cache hit); load testing setup with Locust (SSE stream consumption, admin read storms, feedback bursts); retrieval quality eval framework (55 labelled queries, keyword recall + adversarial detection, per-category breakdown, configurable expansion/compression flags) | `tests/lib/test_session_signer.py`, `tests/lib/test_admin_auth.py`, `tests/chat/test_orchestrator_integration.py`, `tests/load/locustfile.py`, `tests/load/README.md`, `tests/requirements-load.txt`, `tests/eval/dataset.json`, `tests/eval/eval_retrieval.py`, `tests/eval/README.md` |
 | Auth & Deployment Hardening | 2026-03-22 | HMAC-SHA256 session signing (server generates IDs, grace period for legacy); admin API key auth for /admin/* + /metrics with audit logging; env-based CORS (ALLOWED_ORIGINS); per-session rate limiting via X-Session-Token header; profile access control (session or admin for GET, admin-only for DELETE); feedback session validation; HTTPS redirect middleware (ENFORCE_HTTPS); ENVIRONMENT config (dev/staging/prod); rate limits on feedback + profile endpoints | `lib/session_signer.py`, `lib/admin_auth.py`, `lib/limiter.py`, `config.py`, `main.py`, `api/routes_chat.py`, `api/routes_admin.py`, `api/routes_feedback.py`, `api/routes_profile.py`, `adminApi.js`, `chatApi.js`, `useChat.js`, `AdminDashboard.jsx`, `.env.example` |
+| Testing Improvements Track 2 | 2026-03-25 | 27 E2E tests (httpx AsyncClient, mocked Claude, real SQLite); orchestrator integration expanded with multi-turn, tool chaining, fallback, error recovery (23 total); mock LLM mode (MOCK_LLM env var) for load testing; Locust validation + baseline doc; frontend test setup with Vitest + React Testing Library (22 component tests) | `tests/e2e/`, `tests/chat/test_orchestrator_integration.py`, `tests/load/test_mock_llm.py`, `tests/load/results/baseline.md`, `backend/config.py`, `backend/chat/orchestrator.py`, `frontend/vite.config.js`, `frontend/src/__tests__/` |
 
 > Add a row after completing each feature.
 
