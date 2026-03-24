@@ -14,13 +14,6 @@ from backend.retrieval import vector_store
 
 log = get_logger("retrieval.retriever")
 
-# Retrieval constants — now configurable via settings/env.
-# Legacy module-level references point to settings for backward compat.
-THRESHOLD_FLOOR = settings.threshold_floor if hasattr(settings, "threshold_floor") else 0.25
-THRESHOLD_MULTIPLIER = settings.threshold_multiplier if hasattr(settings, "threshold_multiplier") else 1.5
-_RRF_K = settings.rrf_k if hasattr(settings, "rrf_k") else 60
-_MAX_RESULTS = settings.max_retrieval_results if hasattr(settings, "max_retrieval_results") else 8
-
 # Section 2 keywords that trigger automatic definition inclusion
 DEFINITION_KEYWORDS = {
     "workman", "employee", "employer", "basic rate of pay",
@@ -99,7 +92,7 @@ def retrieve_multi(
         result_lists = list(pool.map(_retrieve_single, queries))
 
     merged = _reciprocal_rank_fusion(*result_lists)
-    return merged[:_MAX_RESULTS]
+    return merged[:settings.max_retrieval_results]
 
 
 def _semantic_retrieve(
@@ -153,17 +146,18 @@ def _hybrid_retrieve(
         return _apply_threshold(semantic_results)
 
     merged = _reciprocal_rank_fusion(semantic_results, keyword_results)
-    return merged[:_MAX_RESULTS]
+    return merged[:settings.max_retrieval_results]
 
 
 def _reciprocal_rank_fusion(
     *ranked_lists: list[dict],
-    k: int = _RRF_K,
+    k: int | None = None,
 ) -> list[dict]:
     """
     Merge N ranked lists using Reciprocal Rank Fusion.
     Uses doc['id'] as the dedup key (falls back to text[:100] if id is missing).
     """
+    k = k if k is not None else settings.rrf_k
     scores: dict[str, float] = {}
     docs: dict[str, dict] = {}
 
@@ -179,14 +173,14 @@ def _reciprocal_rank_fusion(
 
 
 def _apply_threshold(combined: list[dict]) -> list[dict]:
-    """Sort by distance, apply relative threshold with floor, cap at 8."""
+    """Sort by distance, apply relative threshold with floor, cap at max_retrieval_results."""
     if not combined:
         return []
     combined.sort(key=lambda x: x["distance"])
     best = combined[0]["distance"]
-    threshold = max(best * THRESHOLD_MULTIPLIER, THRESHOLD_FLOOR)
+    threshold = max(best * settings.threshold_multiplier, settings.threshold_floor)
     filtered = [c for c in combined if c["distance"] <= threshold]
-    return filtered[:_MAX_RESULTS]
+    return filtered[:settings.max_retrieval_results]
 
 
 def needs_definitions(query: str, chunks: list[dict]) -> bool:

@@ -11,8 +11,6 @@ import pytest
 
 from backend.retrieval.retriever import (
     DEFINITION_KEYWORDS,
-    THRESHOLD_FLOOR,
-    THRESHOLD_MULTIPLIER,
     _reciprocal_rank_fusion,
     get_section_2,
     needs_definitions,
@@ -47,7 +45,12 @@ class TestRetrieve:
         with (
             patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
             patch("backend.retrieval.retriever.vector_store.query", side_effect=[ea, mom]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
+            mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             results = retrieve("annual leave")
 
         assert results[0]["text"] == "mom text"   # lower distance first
@@ -70,7 +73,12 @@ class TestRetrieve:
         with (
             patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
             patch("backend.retrieval.retriever.vector_store.query", side_effect=[chunks, []]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
+            mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             results = retrieve("question")
         assert all(c["text"] != "far" for c in results)
 
@@ -84,7 +92,12 @@ class TestRetrieve:
         with (
             patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
             patch("backend.retrieval.retriever.vector_store.query", side_effect=[chunks, []]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
+            mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             results = retrieve("question")
         texts = [r["text"] for r in results]
         assert "very close" in texts
@@ -96,7 +109,12 @@ class TestRetrieve:
         with (
             patch("backend.retrieval.retriever.embed_query", return_value=FAKE_EMBEDDING),
             patch("backend.retrieval.retriever.vector_store.query", side_effect=[chunks, []]),
+            patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
+            mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             results = retrieve("question")
         assert len(results) <= 8
 
@@ -193,6 +211,9 @@ class TestHybridRetrieve:
             ),
         ):
             mock_settings.retrieval_mode = "hybrid"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             from backend.retrieval.retriever import _hybrid_retrieve
             results = _hybrid_retrieve("annual leave", 10)
 
@@ -235,6 +256,9 @@ class TestHybridRetrieve:
             patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
             mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
             from backend.retrieval.retriever import retrieve
             results = retrieve("overtime")
 
@@ -294,6 +318,10 @@ class TestRetrieveMulti:
             patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
             mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
+            mock_settings.rrf_k = 60
             result = retrieve_multi(["q1", "q2", "q3"])
         assert len(result) <= 8
 
@@ -321,6 +349,10 @@ class TestRetrieveMulti:
             patch("backend.retrieval.retriever.settings") as mock_settings,
         ):
             mock_settings.retrieval_mode = "semantic"
+            mock_settings.threshold_floor = 0.25
+            mock_settings.threshold_multiplier = 1.5
+            mock_settings.max_retrieval_results = 8
+            mock_settings.rrf_k = 60
             result = retrieve_multi(["q1", "q2"])
         assert len(result) <= 8
 

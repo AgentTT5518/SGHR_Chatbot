@@ -37,11 +37,11 @@ class Settings(BaseSettings):
     cache_high_threshold: float = 0.95
     cache_medium_threshold: float = 0.88
     # Query expansion settings (Phase 4A)
-    use_query_expansion: bool = True
+    use_query_expansion: bool = False
     query_expansion_count: int = 3
     # Contextual compression settings (Phase 4B)
     use_contextual_compression: bool = True
-    compression_threshold: float = 0.45
+    compression_threshold: float = 0.35
     # Retriever tuning constants (Phase 5 — Retrieval Tuning)
     threshold_floor: float = 0.25
     threshold_multiplier: float = 1.5

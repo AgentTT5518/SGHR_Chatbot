@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 import time
@@ -38,11 +39,43 @@ def evaluate_query(
     expect_low_relevance: bool,
     k: int,
 ) -> dict:
-    """Run retrieval for a single query and compute metrics."""
-    from backend.retrieval.retriever import retrieve
+    """Run retrieval for a single query and compute metrics.
+
+    Exercises the full pipeline: expand → retrieve → compress,
+    controlled by settings.use_query_expansion and
+    settings.use_contextual_compression.
+    """
+    from backend.config import settings
+    from backend.ingestion.embedder import embed_query
+    from backend.retrieval.compressor import compress
+    from backend.retrieval.query_expander import expand
+    from backend.retrieval.retriever import retrieve, retrieve_multi
+
+    use_compression = settings.use_contextual_compression
 
     start = time.monotonic()
-    results = retrieve(query, n_per_collection=k)
+
+    # Step 1: Query expansion (async → sync via asyncio.run)
+    if settings.use_query_expansion:
+        queries = asyncio.run(expand(query))
+    else:
+        queries = [query]
+
+    # Step 2: Retrieve (multi-query RRF or single-query)
+    if len(queries) > 1:
+        results = retrieve_multi(
+            queries, n_per_collection=k, include_embeddings=use_compression,
+        )
+    else:
+        results = retrieve(
+            query, n_per_collection=k, include_embeddings=use_compression,
+        )
+
+    # Step 3: Contextual compression
+    if use_compression and results:
+        q_embedding = embed_query(query)
+        results = compress(q_embedding, results)
+
     latency_ms = (time.monotonic() - start) * 1000
 
     # Combine all text from results for keyword matching
@@ -115,6 +148,13 @@ def run_evaluation(
         object.__setattr__(settings, "compression_threshold", threshold)
 
     try:
+        # Pre-warm ChromaDB client + collections to avoid thread-safety
+        # race when retrieve_multi uses ThreadPoolExecutor
+        from backend.retrieval.vector_store import get_client, get_collection
+        get_client()
+        get_collection("employment_act")
+        get_collection("mom_guidelines")
+
         results_by_category: dict[str, list[dict]] = defaultdict(list)
         all_results: list[dict] = []
 
@@ -176,6 +216,10 @@ def run_evaluation(
             "use_query_expansion": settings.use_query_expansion,
             "use_contextual_compression": settings.use_contextual_compression,
             "compression_threshold": settings.compression_threshold,
+            "threshold_floor": settings.threshold_floor,
+            "threshold_multiplier": settings.threshold_multiplier,
+            "rrf_k": settings.rrf_k,
+            "max_retrieval_results": settings.max_retrieval_results,
             "retrieval_mode": settings.retrieval_mode,
             "k": k,
         }
