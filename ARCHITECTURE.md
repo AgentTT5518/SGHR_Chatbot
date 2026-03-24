@@ -111,6 +111,10 @@ graph TB
 | Limiter | `backend/lib/limiter.py` | Shared slowapi rate-limiter; composite key (X-Session-Token header → IP fallback) | slowapi |
 | Metrics | `backend/lib/metrics.py` | In-memory request counter: totals, errors, avg latency, per-path counts | threading.Lock |
 | Frontend App | `frontend/src/` | React chat interface, SSE streaming, feedback buttons, admin dashboard | React 19, Vite |
+| E2E Tests | `tests/e2e/` | Full request/response cycle tests with mocked Claude API, real SQLite + ChromaDB | httpx, pytest-asyncio |
+| Orchestrator Integration Tests | `tests/chat/test_orchestrator_integration.py` | Tool dispatch loop tests with real registry, mocked Claude + dependencies | pytest |
+| Load Tests | `tests/load/locustfile.py` | HTTP load simulation (ChatUser, AdminUser, FeedbackUser); requires `MOCK_LLM=true` | Locust |
+| Frontend Tests | `frontend/src/__tests__/` | Component smoke tests (InputBar, MessageBubble, AdminDashboard) | Vitest, React Testing Library |
 
 ## Data Model
 

@@ -7,19 +7,21 @@ Load tests use [Locust](https://locust.io/) to simulate concurrent users hitting
 Install the load-test dependencies into a **separate** virtual environment (or the same one, but note these are intentionally kept out of the main `requirements.txt`):
 
 ```bash
-pip install -r tests/requirements-load.txt
+pip install -r tests/load/requirements-load.txt
 ```
 
 ## Mocking the Anthropic Client
 
 **Do not run load tests against the live Anthropic API.** Each chat request triggers a Claude API call, which is slow and expensive under load.
 
-Before starting a load run, configure the backend to use a mock LLM. Recommended approach:
+The backend supports a `MOCK_LLM` config flag that short-circuits the orchestrator with a canned response. When enabled:
 
-1. Set the environment variable `MOCK_LLM=1` before starting the backend.
-2. In the backend startup code, check for this flag and replace the real Anthropic client with a stub that yields a deterministic SSE token stream (e.g., a fixed answer split into tokens with short delays).
+- The Anthropic API is never called
+- Sessions are still created and messages persisted in SQLite
+- SSE streaming format is preserved (tokens + done event)
+- Response: "This is a mock response for load testing. The Employment Act governs employment terms in Singapore."
 
-This gives realistic streaming behavior without incurring API costs or hitting rate limits.
+Set `MOCK_LLM=true` in your `.env` file or as an environment variable before starting the backend.
 
 ## Running the Tests
 
