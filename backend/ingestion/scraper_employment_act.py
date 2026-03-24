@@ -43,7 +43,7 @@ async def scrape_act() -> list[dict]:
 
         # Extract all section links from the TOC
         section_links = await page.eval_on_selector_all(
-            "a[href*='/Act/EMA1968#pr']",
+            "a[href*='#pr']",
             "els => els.map(e => ({href: e.href, text: e.textContent.trim()}))"
         )
         print(f"  Found {len(section_links)} section links")
