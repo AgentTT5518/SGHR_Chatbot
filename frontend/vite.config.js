@@ -8,6 +8,7 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
       '/admin': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
+      '/metrics': 'http://localhost:8000',
     },
   },
   test: {
