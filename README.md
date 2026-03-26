@@ -107,12 +107,12 @@ Start the backend and frontend in separate terminals:
 # Terminal 1 — Backend (port 8000)
 uvicorn backend.main:app --reload --port 8000
 
-# Terminal 2 — Frontend (port 5173)
+# Terminal 2 — Frontend (port 5170)
 cd frontend
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Open [http://localhost:5170](http://localhost:5170).
 
 ---
 

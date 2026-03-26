@@ -46,6 +46,16 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    # Validate API key early — fail fast instead of failing on first chat request
+    key = _settings.anthropic_api_key
+    if not key:
+        log.error(
+            "ANTHROPIC_API_KEY is empty — check that no shell env var "
+            "is shadowing the .env file (run: unset ANTHROPIC_API_KEY)"
+        )
+        raise RuntimeError("ANTHROPIC_API_KEY is not set — cannot start")
+    log.info("Anthropic API key loaded", extra={"prefix": key[:10] + "..."})
+
     log.info("Initialising SQLite schema...")
     await session_manager.init_db()
     await profile_store.init_profile_db()
@@ -90,7 +100,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 
 app.add_middleware(MetricsMiddleware)
 
-# CORS — origins from env (ALLOWED_ORIGINS), defaults to localhost:5173
+# CORS — origins from env (ALLOWED_ORIGINS), defaults to localhost:5170
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_settings.allowed_origins_list,

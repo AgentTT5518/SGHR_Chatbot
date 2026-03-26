@@ -8,12 +8,14 @@ the full run() orchestration.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
 import pytest
 
 from backend.ingestion.ingest_pipeline import (
+    IngestionCancelled,
     _chunk_id,
     _load_or_scrape_employment_act,
     _load_or_scrape_mom,
@@ -263,3 +265,43 @@ class TestRun:
 
         assert raw_dir.exists()
         assert chroma_dir.exists()
+
+    def _run_with_mocks(self, tmp_path, **kwargs):
+        """Helper to run the pipeline with all dependencies mocked."""
+        mock_col = MagicMock()
+        mock_col.name = "col"
+        mock_col.count.return_value = 1
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_col
+
+        with (
+            patch("backend.ingestion.ingest_pipeline.RAW_SCRAPED_DIR", tmp_path),
+            patch("backend.ingestion.ingest_pipeline.CHROMA_DIR", tmp_path / "chroma"),
+            patch("backend.ingestion.ingest_pipeline._load_or_scrape_employment_act", return_value=[_ea_section()]),
+            patch("backend.ingestion.ingest_pipeline._load_or_scrape_mom", return_value=[_mom_page()]),
+            patch("backend.ingestion.chunker.chunk_all", return_value=([_ea_chunk()], [_mom_chunk()])),
+            patch("backend.ingestion.embedder.embed_documents", return_value=[[0.1] * 768]),
+            patch("chromadb.PersistentClient", return_value=mock_client),
+        ):
+            run(**kwargs)
+
+    def test_on_progress_callback_receives_all_steps(self, tmp_path):
+        events = []
+        self._run_with_mocks(tmp_path, on_progress=events.append)
+
+        # Should have events for steps 1-4 (at least one per step)
+        steps_seen = {e["step"] for e in events}
+        assert {1, 2, 3, 4} == steps_seen
+        assert all(e["total_steps"] == 4 for e in events)
+        assert all("label" in e for e in events)
+
+    def test_on_progress_not_required(self, tmp_path):
+        """Pipeline works without on_progress callback."""
+        self._run_with_mocks(tmp_path, on_progress=None)
+
+    def test_cancel_token_raises_ingestion_cancelled(self, tmp_path):
+        cancel = threading.Event()
+        cancel.set()  # pre-set to cancel immediately
+
+        with pytest.raises(IngestionCancelled):
+            self._run_with_mocks(tmp_path, cancel_token=cancel)

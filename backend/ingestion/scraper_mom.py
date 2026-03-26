@@ -18,20 +18,25 @@ from bs4 import BeautifulSoup
 from backend.config import RAW_SCRAPED_DIR
 
 SEED_URLS = [
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/annual-leave",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/sick-leave",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/maternity-leave",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/paternity-leave",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/childcare-leave",
-    "https://www.mom.gov.sg/employment-practices/leave-and-holidays/public-holidays",
+    # Leave (restructured from /leave-and-holidays/ → /leave/ in 2025)
+    "https://www.mom.gov.sg/employment-practices/leave",
+    "https://www.mom.gov.sg/employment-practices/leave/annual-leave",
+    "https://www.mom.gov.sg/employment-practices/leave/sick-leave",
+    "https://www.mom.gov.sg/employment-practices/leave/maternity-leave",
+    "https://www.mom.gov.sg/employment-practices/leave/paternity-leave",
+    "https://www.mom.gov.sg/employment-practices/leave/childcare-leave",
+    "https://www.mom.gov.sg/employment-practices/public-holidays-entitlement-and-pay",
+    # Salary & overtime
     "https://www.mom.gov.sg/employment-practices/salary",
-    "https://www.mom.gov.sg/employment-practices/salary/overtime-pay",
-    "https://www.mom.gov.sg/employment-practices/employment-rights-conditions",
+    "https://www.mom.gov.sg/employment-practices/salary/calculate-overtime-pay",
+    # Employment rights
+    "https://www.mom.gov.sg/employment-practices/employment-act/workright",
+    # Termination (unchanged)
     "https://www.mom.gov.sg/employment-practices/termination-of-employment",
     "https://www.mom.gov.sg/employment-practices/termination-of-employment/termination-with-notice",
     "https://www.mom.gov.sg/employment-practices/termination-of-employment/wrongful-dismissal",
-    "https://www.mom.gov.sg/employment-practices/workplace-fairness",
+    # Hours of work & rest days
+    "https://www.mom.gov.sg/employment-practices/hours-of-work-overtime-and-rest-days",
 ]
 
 MOM_DOMAIN = "www.mom.gov.sg"

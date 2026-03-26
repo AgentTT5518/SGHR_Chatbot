@@ -71,6 +71,82 @@ export async function triggerIngest(forceRescrape = false) {
   }
 }
 
+/**
+ * GET /admin/ingest/stream — SSE stream with real-time ingestion progress.
+ * Returns { abort } handle to cancel the fetch from the client side.
+ */
+export function streamIngest(forceRescrape, { onProgress, onError, onDone, onCancelled }) {
+  const controller = new AbortController();
+
+  (async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/admin/ingest/stream?force_rescrape=${!!forceRescrape}`,
+        { headers: adminHeaders(), signal: controller.signal },
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        onError?.(body.detail || `HTTP ${res.status}`);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+          try {
+            const event = JSON.parse(raw);
+            if (event.error) {
+              onError?.(event.error);
+            } else if (event.cancelled) {
+              onCancelled?.();
+            } else if (event.done) {
+              onDone?.();
+            } else {
+              onProgress?.(event);
+            }
+          } catch {
+            // malformed SSE line — skip
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        onError?.(err.message);
+      }
+    }
+  })();
+
+  return { abort: () => controller.abort() };
+}
+
+/** POST /admin/ingest/cancel */
+export async function cancelIngest() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/ingest/cancel`, {
+      method: "POST",
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 /** GET /admin/feedback?limit=50&offset=0 */
 export async function fetchFeedback(limit = 50, offset = 0) {
   try {
