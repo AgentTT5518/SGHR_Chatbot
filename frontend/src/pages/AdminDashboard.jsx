@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchHealth,
   fetchCollections,
   fetchSourceHealth,
   triggerIngest,
+  streamIngest,
+  cancelIngest,
   fetchFeedback,
   fetchFeedbackStats,
   fetchMetrics,
@@ -147,6 +149,10 @@ function IngestionTab() {
   const [sourceHealth, setSourceHealth] = useState(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [error, setError] = useState(null);
+  const [cancelled, setCancelled] = useState(false);
+  const abortRef = useRef(null);
 
   async function handleCheckSources() {
     setLoadingSources(true);
@@ -154,12 +160,47 @@ function IngestionTab() {
     setLoadingSources(false);
   }
 
-  async function handleIngest(forceRescrape) {
+  function handleIngest(forceRescrape) {
     setIngesting(true);
-    const result = await triggerIngest(forceRescrape);
-    setStatus(result);
-    setIngesting(false);
+    setProgress(null);
+    setError(null);
+    setCancelled(false);
+    setStatus(null);
+
+    const handle = streamIngest(forceRescrape, {
+      onProgress(event) {
+        setProgress({
+          step: event.step,
+          totalSteps: event.total_steps,
+          label: event.label,
+          detail: event.detail,
+        });
+      },
+      onError(msg) {
+        setError(msg);
+        setIngesting(false);
+        setProgress(null);
+      },
+      onDone() {
+        setIngesting(false);
+        setProgress(null);
+        setStatus({ message: "Ingestion complete" });
+      },
+      onCancelled() {
+        setIngesting(false);
+        setProgress(null);
+        setCancelled(true);
+      },
+    });
+    abortRef.current = handle;
   }
+
+  async function handleCancel() {
+    await cancelIngest();
+    abortRef.current?.abort();
+  }
+
+  const pct = progress ? Math.round((progress.step / progress.totalSteps) * 100) : 0;
 
   return (
     <div className="admin-section">
@@ -209,10 +250,40 @@ function IngestionTab() {
         </button>
       </div>
 
-      {status && (
-        <p className="admin-status-msg">
-          {status.error ? `Error: ${status.error}` : status.message}
-        </p>
+      {ingesting && progress && (
+        <div className="admin-progress">
+          <div className="admin-progress-header">
+            <span>
+              Step {progress.step} of {progress.totalSteps}: {progress.label}
+            </span>
+            <button className="admin-btn-danger" onClick={handleCancel}>
+              Cancel
+            </button>
+          </div>
+          <div className="admin-progress-bar">
+            <div className="admin-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          {progress.detail && (
+            <p className="admin-progress-detail">{progress.detail}</p>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="admin-ingest-error">
+          <span>Ingestion failed: {error}</span>
+          <button className="admin-btn-link" onClick={() => setError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {cancelled && (
+        <p className="admin-status-msg">Ingestion was cancelled.</p>
+      )}
+
+      {status && !ingesting && !error && !cancelled && (
+        <p className="admin-status-msg">{status.message}</p>
       )}
     </div>
   );

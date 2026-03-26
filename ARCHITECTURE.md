@@ -1,6 +1,6 @@
 # Architecture — SGHR Chatbot
 
-> Last updated: 2026-03-25 (Testing Improvements Track 2) | Updated by: Claude Code
+> Last updated: 2026-03-26 (Ingestion Progress Reporting) | Updated by: Claude Code
 
 ## System Overview
 SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Singapore Employment Act and MOM guidelines. It serves employees and HR managers via a React chat interface, streaming responses from Claude through a FastAPI backend backed by ChromaDB vector search.
@@ -8,7 +8,7 @@ SGHR Chatbot is a RAG-powered HR assistant that answers questions about the Sing
 ## Architecture Diagram
 ```mermaid
 graph TB
-    subgraph Client["Client (React + Vite :5173)"]
+    subgraph Client["Client (React + Vite :5170)"]
         UI[Chat UI]
         ADMIN[Admin Dashboard]
     end
@@ -148,7 +148,9 @@ graph TB
 | GET | `/api/sessions/{session_id}/history` | Fetch conversation history | Signed session (X-Session-Token) | — | ✅ |
 | DELETE | `/api/sessions/{session_id}` | Delete session | Signed session (X-Session-Token) | — | ✅ |
 | POST | `/api/feedback` | Record thumbs-up/down; validates session exists | Session exists | 5/min per session/IP | ✅ |
-| POST | `/admin/ingest` | Trigger ingestion pipeline in background | Admin key | 10/min per session/IP | ✅ |
+| POST | `/admin/ingest` | Trigger ingestion pipeline in background (legacy) | Admin key | 10/min per session/IP | ✅ |
+| GET | `/admin/ingest/stream` | SSE stream with real-time ingestion progress | Admin key | 10/min per session/IP | ✅ |
+| POST | `/admin/ingest/cancel` | Cancel a running ingestion | Admin key | 10/min per session/IP | ✅ |
 | GET | `/admin/health/sources` | Validate MOM seed URLs are reachable | Admin key | 10/min per session/IP | ✅ |
 | GET | `/admin/collections` | Return ChromaDB document counts | Admin key | 10/min per session/IP | ✅ |
 | GET | `/admin/feedback` | Paginated list of feedback records | Admin key | — | ✅ |
@@ -226,7 +228,7 @@ Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 - Returns 429 with `Retry-After` header on excess
 
 ### Deployment Security
-- CORS from env: `ALLOWED_ORIGINS` (comma-separated), defaults to `http://localhost:5173`
+- CORS from env: `ALLOWED_ORIGINS` (comma-separated), defaults to `http://localhost:5170`
 - `ENFORCE_HTTPS=true` enables HTTPSRedirectMiddleware for production
 - `ENVIRONMENT` env var (`dev`/`staging`/`prod`) for environment-specific behaviour
 - `.env` in `.gitignore`; only `.env.example` committed
@@ -248,6 +250,7 @@ Max iterations -> FALLBACK_MAX_ITERATIONS streamed after 5 tool loops
 | Testing Improvements | 2026-03-22 | Auth unit tests (session signer + admin auth); orchestrator integration tests (14 tests: single/multi tool dispatch, max iterations fallback, tool error recovery, semantic cache hit); load testing setup with Locust (SSE stream consumption, admin read storms, feedback bursts); retrieval quality eval framework (55 labelled queries, keyword recall + adversarial detection, per-category breakdown, configurable expansion/compression flags) | `tests/lib/test_session_signer.py`, `tests/lib/test_admin_auth.py`, `tests/chat/test_orchestrator_integration.py`, `tests/load/locustfile.py`, `tests/load/README.md`, `tests/requirements-load.txt`, `tests/eval/dataset.json`, `tests/eval/eval_retrieval.py`, `tests/eval/README.md` |
 | Auth & Deployment Hardening | 2026-03-22 | HMAC-SHA256 session signing (server generates IDs, grace period for legacy); admin API key auth for /admin/* + /metrics with audit logging; env-based CORS (ALLOWED_ORIGINS); per-session rate limiting via X-Session-Token header; profile access control (session or admin for GET, admin-only for DELETE); feedback session validation; HTTPS redirect middleware (ENFORCE_HTTPS); ENVIRONMENT config (dev/staging/prod); rate limits on feedback + profile endpoints | `lib/session_signer.py`, `lib/admin_auth.py`, `lib/limiter.py`, `config.py`, `main.py`, `api/routes_chat.py`, `api/routes_admin.py`, `api/routes_feedback.py`, `api/routes_profile.py`, `adminApi.js`, `chatApi.js`, `useChat.js`, `AdminDashboard.jsx`, `.env.example` |
 | Testing Improvements Track 2 | 2026-03-25 | 27 E2E tests (httpx AsyncClient, mocked Claude, real SQLite); orchestrator integration expanded with multi-turn, tool chaining, fallback, error recovery (23 total); mock LLM mode (MOCK_LLM env var) for load testing; Locust validation + baseline doc; frontend test setup with Vitest + React Testing Library (22 component tests) | `tests/e2e/`, `tests/chat/test_orchestrator_integration.py`, `tests/load/test_mock_llm.py`, `tests/load/results/baseline.md`, `backend/config.py`, `backend/chat/orchestrator.py`, `frontend/vite.config.js`, `frontend/src/__tests__/` |
+| Ingestion Progress Reporting | 2026-03-26 | SSE streaming for ingestion progress (reuses chat SSE pattern); progress callback + cancel token in pipeline; asyncio.Queue bridge from sync worker thread via loop.call_soon_threadsafe; cancel endpoint with threading.Event; admin UI progress bar with step indicators; MOM seed URLs updated (leave-and-holidays → leave restructure); API key env var shadowing fix (pydantic model_validator); Anthropic client max_retries increased to 4 | `backend/ingestion/ingest_pipeline.py`, `backend/api/routes_admin.py`, `backend/ingestion/scraper_mom.py`, `backend/config.py`, `backend/main.py`, `backend/chat/rag_chain.py`, `backend/chat/orchestrator.py`, `frontend/src/api/adminApi.js`, `frontend/src/pages/AdminDashboard.jsx`, `frontend/src/styles/index.css` |
 
 > Add a row after completing each feature.
 

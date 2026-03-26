@@ -71,7 +71,7 @@ A step-by-step guide for developing features using Claude Code with git worktree
 **You say:** "Start the dev server" (if not already running)
 
 **What happens:**
-- Dev server starts on localhost:5173 serving the worktree code
+- Dev server starts on localhost:5170 serving the worktree code
 - **Important:** `.env.local` must be copied to the worktree (it's not tracked by git)
 - You test the feature manually in your browser
 - If something's wrong, go back to Step 4
@@ -144,7 +144,7 @@ A step-by-step guide for developing features using Claude Code with git worktree
 | 3 | "Provide a plan before implementing" |
 | 4 | Review plan, give feedback, approve |
 | 5-6 | (AI does automatically) |
-| 7 | "Start the dev server" → test on localhost:5173 |
+| 7 | "Start the dev server" → test on localhost:5170 |
 | 8 | "Commit the changes and push" |
 | 9 | "Do a pull request" |
 | 10 | (You on GitHub: review, merge, delete branch) |

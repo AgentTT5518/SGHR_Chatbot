@@ -15,7 +15,7 @@
 | Package Manager | pip (backend) · npm (frontend) |
 | Test Runner | pytest |
 | Deployment | Local / TBD |
-| Dev Server Port | Backend: 8000 · Frontend: 5173 |
+| Dev Server Port | Backend: 8000 · Frontend: 5170 |
 
 ## Commands
 ```bash

@@ -1,6 +1,8 @@
 """
 Admin routes for triggering re-ingestion and health checks.
-POST /admin/ingest — run the ingestion pipeline
+POST /admin/ingest — run the ingestion pipeline (legacy, fire-and-forget)
+GET  /admin/ingest/stream — SSE stream with real-time ingestion progress
+POST /admin/ingest/cancel — cancel a running ingestion
 GET  /admin/health/sources — check MOM URL health
 GET  /admin/collections — document counts from ChromaDB
 GET  /admin/verified-answers — list verified answers cache
@@ -9,8 +11,14 @@ DELETE /admin/verified-answers/{id} — remove verified answer
 GET  /admin/feedback/candidates — thumbs-up answers not yet cached
 GET  /admin/faq-patterns — FAQ query clusters and knowledge gaps
 """
+import asyncio
+import json
+import threading
+import uuid
+
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.config import RAW_SCRAPED_DIR, settings
@@ -20,6 +28,10 @@ from backend.lib.limiter import limiter
 from backend.lib.logger import get_logger
 
 log = get_logger("api.routes_admin")
+
+# NOTE: Single-process only. If running uvicorn --workers > 1,
+# workers won't share this state. Acceptable for local/dev deployment.
+_active_ingestion: dict | None = None  # {"cancel": Event, "queue": asyncio.Queue, "run_id": str}
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
@@ -59,6 +71,110 @@ async def trigger_ingest(request: Request, req: IngestRequest, background_tasks:
         "message": "Ingestion pipeline started in background. Check server logs for progress.",
         "force_rescrape": req.force_rescrape,
     }
+
+
+def _sse(data: dict) -> str:
+    """Format a dict as an SSE data line."""
+    return f"data: {json.dumps(data)}\n\n"
+
+
+@router.get("/ingest/stream")
+@limiter.limit(settings.admin_rate_limit)
+async def stream_ingest(request: Request, force_rescrape: bool = False):
+    """Stream ingestion progress via SSE.
+
+    Yields events: {"step", "total_steps", "label", "detail", "done"}.
+    Only one ingestion can run at a time (returns 409 if busy).
+    """
+    global _active_ingestion
+
+    if _active_ingestion is not None:
+        raise HTTPException(status_code=409, detail="Ingestion already running")
+
+    cancel_event = threading.Event()
+    progress_queue: asyncio.Queue = asyncio.Queue()
+    run_id = uuid.uuid4().hex
+    loop = asyncio.get_running_loop()
+
+    _active_ingestion = {
+        "cancel": cancel_event,
+        "queue": progress_queue,
+        "run_id": run_id,
+    }
+
+    def progress_callback(event: dict) -> None:
+        """Called from the worker thread — bridges to the async queue."""
+        loop.call_soon_threadsafe(progress_queue.put_nowait, event)
+
+    def worker() -> None:
+        """Runs the pipeline in a thread, pushes final status to queue."""
+        from backend.ingestion.ingest_pipeline import IngestionCancelled, run
+
+        if force_rescrape:
+            for fname in ["employment_act.json", "mom_pages.json"]:
+                path = RAW_SCRAPED_DIR / fname
+                if path.exists():
+                    path.unlink()
+            try:
+                from backend.retrieval.keyword_search import reset_searcher
+                reset_searcher()
+            except Exception:
+                pass
+
+        try:
+            run(on_progress=progress_callback, cancel_token=cancel_event)
+            loop.call_soon_threadsafe(
+                progress_queue.put_nowait,
+                {"done": True, "step": 4, "total_steps": 4, "label": "Complete"},
+            )
+        except IngestionCancelled:
+            log.info("Ingestion cancelled by user")
+            loop.call_soon_threadsafe(
+                progress_queue.put_nowait,
+                {"cancelled": True, "done": True},
+            )
+        except Exception as exc:
+            log.error("Ingestion failed", exc_info=True)
+            loop.call_soon_threadsafe(
+                progress_queue.put_nowait,
+                {"error": str(exc), "done": True},
+            )
+
+    # Launch pipeline in a thread
+    loop.run_in_executor(None, worker)
+
+    async def event_generator():
+        global _active_ingestion
+        done = False
+        try:
+            # First event: run_id so frontend can reference it
+            yield _sse({"run_id": run_id, "step": 0, "total_steps": 4, "label": "Starting..."})
+            while True:
+                event = await progress_queue.get()
+                yield _sse(event)
+                if event.get("done"):
+                    done = True
+                    break
+        finally:
+            if _active_ingestion and not done:
+                cancel_event.set()  # handle client disconnect
+            _active_ingestion = None
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/ingest/cancel")
+@limiter.limit(settings.admin_rate_limit)
+async def cancel_ingest(request: Request):
+    """Cancel a running ingestion."""
+    if _active_ingestion is None:
+        raise HTTPException(status_code=404, detail="No ingestion running")
+    _active_ingestion["cancel"].set()
+    return {"status": "cancelling"}
 
 
 @router.get("/health/sources")

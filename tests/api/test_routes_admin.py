@@ -57,6 +57,42 @@ def test_ingest_rejects_wrong_key(client):
     assert resp.status_code == 403
 
 
+# ── POST /admin/ingest/cancel ─────────────────────────────────────────────────
+
+def test_cancel_returns_404_when_nothing_running(client):
+    """Cancel should return 404 if no ingestion is active."""
+    # Ensure no active ingestion
+    import backend.api.routes_admin as mod
+    mod._active_ingestion = None
+
+    resp = client.post("/admin/ingest/cancel", headers=ADMIN_HEADERS)
+    assert resp.status_code == 404
+
+
+def test_cancel_requires_admin_key(client):
+    resp = client.post("/admin/ingest/cancel")
+    assert resp.status_code == 401
+
+
+# ── GET /admin/ingest/stream ─────────────────────────────────────────────────
+
+def test_stream_returns_409_when_already_running(client):
+    """Should return 409 Conflict if ingestion is already active."""
+    import backend.api.routes_admin as mod
+    mod._active_ingestion = {"cancel": MagicMock(), "queue": MagicMock(), "run_id": "test"}
+
+    try:
+        resp = client.get("/admin/ingest/stream", headers=ADMIN_HEADERS)
+        assert resp.status_code == 409
+    finally:
+        mod._active_ingestion = None
+
+
+def test_stream_requires_admin_key(client):
+    resp = client.get("/admin/ingest/stream")
+    assert resp.status_code == 401
+
+
 # ── GET /admin/health/sources ─────────────────────────────────────────────────
 
 def test_health_sources_all_ok(client):

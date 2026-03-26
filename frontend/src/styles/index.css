@@ -389,3 +389,59 @@ body {
 .admin-status-msg { margin-top: 12px; font-size: 13px; color: #444; }
 .admin-session-id { font-family: monospace; font-size: 12px; color: #666; }
 .admin-spinner { padding: 32px; text-align: center; color: #888; }
+
+/* ── Ingestion progress bar ─────────────────────────────────────────────── */
+.admin-progress {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #f8f9ff;
+  border: 1px solid #e0e4ff;
+  border-radius: 8px;
+}
+.admin-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a237e;
+}
+.admin-progress-bar {
+  height: 8px;
+  background: #e0e4ff;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.admin-progress-fill {
+  height: 100%;
+  background: #1a237e;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.admin-progress-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #666;
+}
+.admin-btn-danger {
+  padding: 4px 12px;
+  background: #b71c1c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-btn-danger:hover { background: #c62828; }
+.admin-ingest-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #fdecea;
+  color: #b71c1c;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

@@ -1,6 +1,7 @@
 import secrets
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -13,6 +14,32 @@ RAW_SCRAPED_DIR = DATA_DIR / "raw_scraped"
 
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_empty_env_vars(cls, values: dict) -> dict:
+        """Treat empty-string env vars as unset so .env values take precedence.
+
+        pydantic-settings prioritises os.environ over .env files. If a shell
+        has ``export ANTHROPIC_API_KEY=`` (empty), the real value in ``.env``
+        is silently ignored. This validator detects that case and re-reads
+        the ``.env`` file to recover the intended value.
+        """
+        if not isinstance(values, dict):
+            return values
+
+        env_file = BASE_DIR.parent / ".env"
+        if not env_file.exists():
+            return values
+
+        from dotenv import dotenv_values  # already a project dependency
+
+        dotenv = dotenv_values(env_file)
+        for field_name, env_name in (("anthropic_api_key", "ANTHROPIC_API_KEY"),):
+            if values.get(field_name) == "" and dotenv.get(env_name):
+                values[field_name] = dotenv[env_name]
+
+        return values
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     claude_model: str = "claude-sonnet-4-6"
     max_tokens: int = 2048
@@ -51,7 +78,7 @@ class Settings(BaseSettings):
     mock_llm: bool = False
     # Environment & deployment (Phase 5 — Auth Hardening)
     environment: str = "dev"  # "dev" | "staging" | "prod"
-    allowed_origins: str = "http://localhost:5173"
+    allowed_origins: str = "http://localhost:5170"
     admin_api_key: str = "dev-only-key"
     session_secret_key: str = ""
     enforce_https: bool = False
@@ -60,9 +87,11 @@ class Settings(BaseSettings):
     feedback_rate_limit: str = "5/minute"
     profile_rate_limit: str = "10/minute"
 
-    class Config:
-        env_file = BASE_DIR.parent / ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": BASE_DIR.parent / ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
     @property
     def allowed_origins_list(self) -> list[str]:
